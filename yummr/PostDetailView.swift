@@ -17,16 +17,22 @@ struct PostDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            AsyncImage(url: URL(string: post.imageURL)) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                default:
-                    Color.gray.frame(height: 200)
+            TabView {
+                ForEach(post.imageURLs, id: \.self) { urlString in
+                    AsyncImage(url: URL(string: urlString)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFit()
+                        default:
+                            Color.gray.frame(height: 200)
+                        }
+                    }
                 }
             }
+            .frame(height: 300)
+            .tabViewStyle(PageTabViewStyle())
 
             Text(post.title)
                 .font(.title2)

@@ -74,7 +74,7 @@ struct ProfileView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                     ForEach(userPosts) { post in
                         VStack {
-                            AsyncImage(url: URL(string: post.imageURL)) { phase in
+                            AsyncImage(url: URL(string: post.imageURLs.first ?? "")) { phase in
                                 switch phase {
                                 case .empty:
                                     ProgressView()
