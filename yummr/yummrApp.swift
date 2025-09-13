@@ -4,14 +4,20 @@
 //
 //  Created by kuba woahz on 6/27/25.
 //
-
 import SwiftUI
+import FirebaseCore
+import SwiftUI
+import FirebaseCore
 
 @main
-struct yummrApp: App {
+struct YummrApp: App {
+    init() {
+        FirebaseApp.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView() // or FeedView/AuthView if not using RootView
         }
     }
 }
