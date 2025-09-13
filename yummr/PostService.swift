@@ -110,22 +110,27 @@ class PostService: ObservableObject {
                     return
                 }
 
-                let post = Post(
-                    title: title,
-                    description: description,
-                    imageURL: downloadURL.absoluteString,
-                    timestamp: Date(),
-                    authorID: uid,
-                    authorName: authorName,
-                    likedBy: [],
-                    likeCount: 0
-                )
+                // Store URLs in both the new array-based field and the legacy
+                // single URL field so older app versions can still read posts.
+                let downloadURLs = [downloadURL.absoluteString]
+                let postData: [String: Any] = [
+                    "title": title,
+                    "description": description,
+                    "imageURL": downloadURLs.first ?? "",
+                    "imageURLs": downloadURLs,
+                    "timestamp": Date(),
+                    "authorID": uid,
+                    "authorName": authorName,
+                    "likedBy": [],
+                    "likeCount": 0
+                ]
 
-                do {
-                    _ = try self.db.collection("posts").addDocument(from: post)
-                    completion(.success(()))
-                } catch {
-                    completion(.failure(error))
+                self.db.collection("posts").addDocument(data: postData) { error in
+                    if let error = error {
+                        completion(.failure(error))
+                    } else {
+                        completion(.success(()))
+                    }
                 }
             }
         }
