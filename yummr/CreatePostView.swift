@@ -6,8 +6,10 @@ import PhotosUI
 struct CreatePostView: View {
     @State private var title = ""
     @State private var description = ""
-    @State private var selectedImage: UIImage?
-    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var selectedImages: [UIImage] = []
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var uploadProgress: [Double] = []
+    @State private var editMode: EditMode = .inactive
     @State private var isUploading = false
     @State private var uploadSuccess = false
     @State private var errorMessage: String?
@@ -22,50 +24,71 @@ struct CreatePostView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
 
                 PhotosPicker(
-                    selection: $selectedPhoto,
+                    selection: $selectedPhotos,
+                    maxSelectionCount: 5,
                     matching: .images,
                     photoLibrary: .shared()
                 ) {
-                    if let image = selectedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 200)
-                            .cornerRadius(10)
-                    } else {
-                        Text("Select an Image")
-                            .foregroundColor(.blue)
-                    }
+                    Text("Select Images")
+                        .foregroundColor(.blue)
                 }
-                .onChange(of: selectedPhoto) {
+                .onChange(of: selectedPhotos) { items in
                     Task {
-                        if let data = try? await selectedPhoto?.loadTransferable(type: Data.self),
-                           let uiImage = UIImage(data: data) {
-                            selectedImage = uiImage
+                        selectedImages = []
+                        for item in items {
+                            if let data = try? await item.loadTransferable(type: Data.self),
+                               let uiImage = UIImage(data: data) {
+                                selectedImages.append(uiImage)
+                            }
                         }
                     }
                 }
 
-
-                if isUploading {
-                    ProgressView("Uploading...")
+                if !selectedImages.isEmpty {
+                    List {
+                        ForEach(selectedImages.indices, id: \.self) { index in
+                            VStack {
+                                Image(uiImage: selectedImages[index])
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 200)
+                                    .cornerRadius(10)
+                                if isUploading && uploadProgress.indices.contains(index) {
+                                    ProgressView(value: uploadProgress[index])
+                                }
+                            }
+                        }
+                        .onMove { indices, newOffset in
+                            selectedImages.move(fromOffsets: indices, toOffset: newOffset)
+                        }
+                    }
+                    .frame(height: 250)
+                    .environment(\.editMode, $editMode)
                 }
 
                 Button("Post") {
-                    guard let image = selectedImage else {
-                        errorMessage = "Please select an image."
+                    guard !selectedImages.isEmpty else {
+                        errorMessage = "Please select at least one image."
                         return
                     }
 
                     isUploading = true
-                    PostService.shared.uploadPost(title: title, description: description, image: image) { result in
+                    uploadProgress = Array(repeating: 0, count: selectedImages.count)
+                    PostService.shared.uploadPost(title: title, description: description, images: selectedImages, progressHandler: { index, progress in
+                        DispatchQueue.main.async {
+                            if uploadProgress.indices.contains(index) {
+                                uploadProgress[index] = progress
+                            }
+                        }
+                    }) { result in
                         isUploading = false
                         switch result {
                         case .success:
                             uploadSuccess = true
                             title = ""
                             description = ""
-                            selectedImage = nil
+                            selectedImages = []
+                            selectedPhotos = []
                         case .failure(let error):
                             errorMessage = error.localizedDescription
                         }
@@ -90,6 +113,7 @@ struct CreatePostView: View {
             }
             .padding()
             .navigationTitle("Create Post")
+            .toolbar { EditButton() }
         }
     }
 }

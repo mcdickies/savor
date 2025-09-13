@@ -1,9 +1,6 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 //push
 
 struct PostCard: View {
@@ -30,21 +27,27 @@ struct PostCard: View {
                 .font(.subheadline)
                 .foregroundColor(.gray)
 
-            AsyncImage(url: URL(string: post.imageURL)) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .cornerRadius(12)
-                case .failure:
-                    Image(systemName: "photo")
-                @unknown default:
-                    EmptyView()
+            TabView {
+                ForEach(post.imageURLs, id: \.self) { urlString in
+                    AsyncImage(url: URL(string: urlString)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .cornerRadius(12)
+                        case .failure:
+                            Image(systemName: "photo")
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
                 }
             }
+            .frame(height: 300)
+            .tabViewStyle(PageTabViewStyle())
 
             Text(post.description)
                 .font(.body)

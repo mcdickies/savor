@@ -63,7 +63,8 @@ class PostService: ObservableObject {
     func uploadPost(
         title: String,
         description: String,
-        image: UIImage,
+        images: [UIImage],
+        progressHandler: ((Int, Double) -> Void)? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         guard let uid = Auth.auth().currentUser?.uid else {
@@ -79,54 +80,72 @@ class PostService: ObservableObject {
                       ?? Auth.auth().currentUser?.email
                       ?? "Unknown"
 
-        let imageID = UUID().uuidString
-        let imageRef = storage.reference().child("images/\(imageID).jpg")
+        var urls: [String] = Array(repeating: "", count: images.count)
+        var uploadError: Error?
+        let group = DispatchGroup()
 
-        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
-            completion(.failure(
-                NSError(domain: "ImageError", code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Could not convert image."])
-            ))
-            return
+        for (index, image) in images.enumerated() {
+            group.enter()
+
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                uploadError = NSError(domain: "ImageError", code: 0,
+                                      userInfo: [NSLocalizedDescriptionKey: "Could not convert image."])
+                group.leave()
+                continue
+            }
+
+            let imageID = UUID().uuidString
+            let imageRef = storage.reference().child("images/\(imageID).jpg")
+            let uploadTask = imageRef.putData(imageData, metadata: nil)
+
+            uploadTask.observe(.progress) { snapshot in
+                let progress = Double(snapshot.progress?.completedUnitCount ?? 0) /
+                                Double(snapshot.progress?.totalUnitCount ?? 1)
+                progressHandler?(index, progress)
+            }
+
+            uploadTask.observe(.success) { _ in
+                imageRef.downloadURL { url, error in
+                    if let error = error {
+                        uploadError = error
+                    } else if let url = url {
+                        urls[index] = url.absoluteString
+                        progressHandler?(index, 1.0)
+                    }
+                    group.leave()
+                }
+            }
+
+            uploadTask.observe(.failure) { snapshot in
+                if let error = snapshot.error {
+                    uploadError = error
+                }
+                group.leave()
+            }
         }
 
-        imageRef.putData(imageData, metadata: nil) { _, error in
-            if let error = error {
+        group.notify(queue: .main) {
+            if let error = uploadError {
                 completion(.failure(error))
                 return
             }
 
-            imageRef.downloadURL { url, error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
+            let post = Post(
+                title: title,
+                description: description,
+                imageURLs: urls,
+                timestamp: Date(),
+                authorID: uid,
+                authorName: authorName,
+                likedBy: [],
+                likeCount: 0
+            )
 
-                guard let downloadURL = url else {
-                    completion(.failure(
-                        NSError(domain: "StorageError", code: 0,
-                                userInfo: [NSLocalizedDescriptionKey: "Could not get download URL."])
-                    ))
-                    return
-                }
-
-                let post = Post(
-                    title: title,
-                    description: description,
-                    imageURL: downloadURL.absoluteString,
-                    timestamp: Date(),
-                    authorID: uid,
-                    authorName: authorName,
-                    likedBy: [],
-                    likeCount: 0
-                )
-
-                do {
-                    _ = try self.db.collection("posts").addDocument(from: post)
-                    completion(.success(()))
-                } catch {
-                    completion(.failure(error))
-                }
+            do {
+                _ = try self.db.collection("posts").addDocument(from: post)
+                completion(.success(()))
+            } catch {
+                completion(.failure(error))
             }
         }
     }
