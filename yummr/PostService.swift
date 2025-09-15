@@ -1,16 +1,18 @@
-
 import Foundation
 import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
+import FirebaseFirestoreSwift
 import UIKit
 import Combine
-//push
+
 class PostService: ObservableObject {
 
     static let shared = PostService()
     private let db = Firestore.firestore()
     private let storage = Storage.storage()
+
+    @Published var cachedTopPosts: [Post] = []
 
     func toggleLike(for post: Post, completion: @escaping (Result<Void, Error>) -> Void) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -63,7 +65,13 @@ class PostService: ObservableObject {
     func uploadPost(
         title: String,
         description: String,
+        recipe: String?,
+        cookTime: String?,
+        taggedUserIDs: [String],
+        photoTags: [Post.PhotoTag],
+        extraFields: [String: String] = [:],
         images: [UIImage],
+        detailImages: [UIImage] = [],
         progressHandler: ((Int, Double) -> Void)? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
@@ -75,12 +83,12 @@ class PostService: ObservableObject {
             return
         }
 
-        // Use displayName if set, else fallback to email
         let authorName = Auth.auth().currentUser?.displayName
                       ?? Auth.auth().currentUser?.email
                       ?? "Unknown"
 
         var urls: [String] = Array(repeating: "", count: images.count)
+        var detailURLs: [String] = Array(repeating: "", count: detailImages.count)
         var uploadError: Error?
         let group = DispatchGroup()
 
@@ -124,21 +132,59 @@ class PostService: ObservableObject {
             }
         }
 
+        for (index, image) in detailImages.enumerated() {
+            group.enter()
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                uploadError = NSError(domain: "ImageError", code: 0,
+                                      userInfo: [NSLocalizedDescriptionKey: "Could not convert detail image."])
+                group.leave()
+                continue
+            }
+
+            let imageID = UUID().uuidString
+            let imageRef = storage.reference().child("images/detail/\(imageID).jpg")
+            imageRef.putData(imageData, metadata: nil) { _, error in
+                if let error = error {
+                    uploadError = error
+                    group.leave()
+                    return
+                }
+                imageRef.downloadURL { url, error in
+                    if let error = error {
+                        uploadError = error
+                    } else if let url = url {
+                        detailURLs[index] = url.absoluteString
+                    }
+                    group.leave()
+                }
+            }
+        }
+
         group.notify(queue: .main) {
             if let error = uploadError {
                 completion(.failure(error))
                 return
             }
 
+            let uniqueTagged = Array(Set(taggedUserIDs))
+            let sanitizedExtras = extraFields.isEmpty ? nil : extraFields
+            let sanitizedDetailURLs = detailURLs.isEmpty ? nil : detailURLs
+
             let post = Post(
                 title: title,
                 description: description,
+                recipe: recipe,
+                cookTime: cookTime,
                 imageURLs: urls,
+                detailImages: sanitizedDetailURLs,
+                extraFields: sanitizedExtras,
                 timestamp: Date(),
                 authorID: uid,
                 authorName: authorName,
                 likedBy: [],
-                likeCount: 0
+                likeCount: 0,
+                taggedUserIDs: uniqueTagged,
+                photoTags: photoTags
             )
 
             do {
@@ -148,5 +194,52 @@ class PostService: ObservableObject {
                 completion(.failure(error))
             }
         }
+    }
+
+    func preloadTopPosts(limit: Int = 5, completion: (() -> Void)? = nil) {
+        db.collection("posts")
+            .order(by: "timestamp", descending: true)
+            .limit(to: limit)
+            .getDocuments { snapshot, _ in
+                let posts = snapshot?.documents.compactMap { try? $0.data(as: Post.self) } ?? []
+                DispatchQueue.main.async {
+                    self.cachedTopPosts = posts
+                    completion?()
+                }
+            }
+    }
+
+    func searchPosts(matching query: String, limit: Int = 20, completion: @escaping ([Post]) -> Void) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            completion([])
+            return
+        }
+
+        db.collection("posts")
+            .order(by: "timestamp", descending: true)
+            .limit(to: 50)
+            .getDocuments { snapshot, _ in
+                let posts = snapshot?.documents.compactMap { try? $0.data(as: Post.self) } ?? []
+                let lower = trimmed.lowercased()
+                let filtered = posts.filter { post in
+                    let titleMatch = post.title.lowercased().contains(lower)
+                    let descriptionMatch = post.description.lowercased().contains(lower)
+                    let recipeMatch = (post.recipe ?? "").lowercased().contains(lower)
+                    let cookTimeMatch = (post.cookTime ?? "").lowercased().contains(lower)
+                    let ingredientMatch = post.extraFields?.values.contains(where: { $0.lowercased().contains(lower) }) ?? false
+                    return titleMatch || descriptionMatch || recipeMatch || cookTimeMatch || ingredientMatch
+                }
+                completion(Array(filtered.prefix(limit)))
+            }
+    }
+
+    func fetchTaggedPosts(for userID: String, completion: @escaping ([Post]) -> Void) {
+        db.collection("posts")
+            .whereField("taggedUserIDs", arrayContains: userID)
+            .getDocuments { snapshot, _ in
+                let posts = snapshot?.documents.compactMap { try? $0.data(as: Post.self) } ?? []
+                completion(posts)
+            }
     }
 }

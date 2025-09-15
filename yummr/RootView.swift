@@ -10,6 +10,7 @@ import SwiftUI
 
 struct RootView: View {
     @StateObject var auth = AuthService()
+    @State private var searchFilter: SearchView.SortFilter = .trending
 
     var body: some View {
         Group {
@@ -18,8 +19,7 @@ struct RootView: View {
                     FeedView()
                         .tabItem { Label("Feed",    systemImage: "list.bullet") }
 
-                    // temporarily stubbed; we'll flesh this out later
-                    Text("Search")
+                    SearchView(selectedFilter: $searchFilter)
                         .tabItem { Label("Search",  systemImage: "magnifyingglass") }
 
                     CreatePostView()

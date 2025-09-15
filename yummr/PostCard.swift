@@ -1,7 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-//push
+import FirebaseFirestoreSwift
 
 struct PostCard: View {
     var post: Post
@@ -11,6 +11,9 @@ struct PostCard: View {
     @State private var previewComments: [Comment] = []
     @State private var showAllComments = false
     @State private var commentCount = 0
+    @State private var showTagsOverlay = false
+    @State private var currentImageIndex = 0
+    @State private var taggedUsers: [String: AppUser] = [:]
 
     init(post: Post) {
         self.post = post
@@ -23,34 +26,40 @@ struct PostCard: View {
             Text(post.title)
                 .font(.headline)
 
-            Text("By \(post.authorName)")
-                .font(.subheadline)
-                .foregroundColor(.gray)
+            NavigationLink(destination: ProfileView(userID: post.authorID)) {
+                Text("By \(post.authorName)")
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+            .buttonStyle(.plain)
 
-            TabView {
-                ForEach(post.imageURLs, id: \.self) { urlString in
-                    AsyncImage(url: URL(string: urlString)) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .cornerRadius(12)
-                        case .failure:
-                            Image(systemName: "photo")
-                        @unknown default:
-                            EmptyView()
+            tabbedImages
+
+            if let cookTime = post.cookTime, !cookTime.isEmpty {
+                Label(cookTime, systemImage: "clock")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Text(post.description)
+                .font(.body)
+
+            if !post.taggedUserIDs.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(sortedTaggedUsers, id: \.handle) { user in
+                            NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
+                                Text("@\(user.handle)")
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(12)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
-            .frame(height: 300)
-            .tabViewStyle(PageTabViewStyle())
-
-            Text(post.description)
-                .font(.body)
 
             HStack(spacing: 10) {
                 Button(action: toggleLike) {
@@ -60,19 +69,24 @@ struct PostCard: View {
                 Text("\(likeCount)")
                     .foregroundColor(.gray)
                     .font(.subheadline)
+
+                Spacer()
+
+                if !post.photoTags.isEmpty {
+                    Button {
+                        withAnimation {
+                            showTagsOverlay.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showTagsOverlay ? "tag.fill" : "tag")
+                    }
+                }
             }
             .padding(.top, 4)
 
-            // 💬 Preview Comments
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(previewComments.prefix(2)) { comment in
-                    HStack(alignment: .top, spacing: 6) {
-                        Text(comment.authorName)
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        Text(comment.text)
-                            .font(.caption)
-                    }
+                    commentRow(comment)
                 }
 
                 if commentCount > 2 {
@@ -82,6 +96,12 @@ struct PostCard: View {
                     .font(.caption)
                     .foregroundColor(.blue)
                 }
+
+                Button("Open comments") {
+                    showAllComments = true
+                }
+                .font(.caption)
+                .foregroundColor(.blue)
             }
         }
         .padding()
@@ -89,13 +109,110 @@ struct PostCard: View {
         .cornerRadius(12)
         .onAppear {
             fetchPreviewComments()
+            fetchTaggedUsers()
         }
         .sheet(isPresented: $showAllComments, onDismiss: {
-            // refresh preview after closing full list
             fetchPreviewComments()
         }) {
             AllCommentsView(post: post)
         }
+    }
+
+    private var tabbedImages: some View {
+        TabView(selection: $currentImageIndex) {
+            ForEach(Array(post.imageURLs.enumerated()), id: \.offset) { item in
+                GeometryReader { geometry in
+                    ZStack {
+                        CachedWebImage(url: URL(string: item.element)) {
+                            ProgressView()
+                        }
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                        if showTagsOverlay {
+                            ForEach(tags(for: item.offset), id: \.id) { tag in
+                                tagOverlay(tag: tag, geometry: geometry)
+                            }
+                        }
+                    }
+                }
+                .frame(height: 300)
+                .cornerRadius(12)
+                .padding(.bottom, 4)
+                .tag(item.offset)
+            }
+        }
+        .frame(height: 300)
+        .tabViewStyle(PageTabViewStyle())
+    }
+
+    private func tagOverlay(tag: Post.PhotoTag, geometry: GeometryProxy) -> some View {
+        let size = geometry.size
+        let position = position(for: tag, in: size)
+        let label = tagLabel(for: tag)
+        return Group {
+            if let position = position {
+                Text(label)
+                    .font(.caption2)
+                    .padding(6)
+                    .background(Color.black.opacity(0.7))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .position(position)
+            }
+        }
+    }
+
+    private func tags(for index: Int) -> [Post.PhotoTag] {
+        post.photoTags.filter { tag in
+            guard let imageIndex = tag.imageIndex else { return false }
+            return imageIndex == index
+        }
+    }
+
+    private func position(for tag: Post.PhotoTag, in size: CGSize) -> CGPoint? {
+        guard let x = tag.x, let y = tag.y else { return nil }
+        return CGPoint(x: CGFloat(x) * size.width, y: CGFloat(y) * size.height)
+    }
+
+    private func tagLabel(for tag: Post.PhotoTag) -> String {
+        if let label = tag.label { return label }
+        if let user = taggedUsers[tag.userID] {
+            return "@\(user.handle)"
+        }
+        return "@\(tag.userID.prefix(6))"
+    }
+
+    private var sortedTaggedUsers: [AppUser] {
+        post.taggedUserIDs.compactMap { taggedUsers[$0] }
+    }
+
+    private func commentRow(_ comment: Comment) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            NavigationLink(destination: ProfileView(userID: comment.authorID)) {
+                Text(comment.authorName)
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
+            .buttonStyle(.plain)
+
+            highlightMentions(in: comment.text)
+                .font(.caption)
+        }
+    }
+
+    private func highlightMentions(in text: String) -> Text {
+        let parts = text.split(separator: " ")
+        var composed = Text("")
+        for part in parts {
+            if part.hasPrefix("@") {
+                let mention = String(part)
+                composed = composed + Text(" \(mention)").foregroundColor(.blue)
+            } else {
+                composed = composed + Text(" \(part)")
+            }
+        }
+        return composed
     }
 
     private func toggleLike() {
@@ -123,6 +240,7 @@ struct PostCard: View {
             .document(postID)
             .collection("comments")
             .order(by: "timestamp", descending: false)
+            .limit(to: 5)
             .getDocuments { snapshot, error in
                 if let error = error {
                     print("Preview comments fetch error:", error)
@@ -137,5 +255,21 @@ struct PostCard: View {
                     print("Preview comments decode error:", error)
                 }
             }
+    }
+
+    private func fetchTaggedUsers() {
+        let ids = post.taggedUserIDs
+        guard !ids.isEmpty else { return }
+        UserService.shared.fetchUsers(withIDs: ids) { users in
+            DispatchQueue.main.async {
+                var map: [String: AppUser] = [:]
+                for user in users {
+                    if let id = user.id {
+                        map[id] = user
+                    }
+                }
+                self.taggedUsers = map
+            }
+        }
     }
 }

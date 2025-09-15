@@ -17,7 +17,10 @@ struct FeedView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     ForEach(posts.sorted { $0.timestamp > $1.timestamp }) { post in
-                        PostCard(post: post)
+                        NavigationLink(destination: PostDetailView(post: post)) {
+                            PostCard(post: post)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding()
