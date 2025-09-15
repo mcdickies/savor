@@ -21,7 +21,8 @@
 		D03E44002E12C0F600FE91E9 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03E43FF2E12C0F600FE91E9 /* ProfileView.swift */; };
 		D03E44042E12DE2B00FE91E9 /* PostDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03E44032E12DE2B00FE91E9 /* PostDetailView.swift */; };
 		D03E44062E12DE3800FE91E9 /* Comment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03E44052E12DE3800FE91E9 /* Comment.swift */; };
-		D03E44082E12DFE800FE91E9 /* AllCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03E44072E12DFE800FE91E9 /* AllCommentsView.swift */; };
+                D03E44082E12DFE800FE91E9 /* AllCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03E44072E12DFE800FE91E9 /* AllCommentsView.swift */; };
+                D0F2222A2E70000100691496 /* UserPostsFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F222292E70000100691496 /* UserPostsFeedView.swift */; };
 		D0DDE65D2E0FD0BA00691496 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE65C2E0FD0BA00691496 /* Post.swift */; };
 		D0DDE65F2E0FD0CB00691496 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE65E2E0FD0CB00691496 /* FeedView.swift */; };
 		D0DDE6612E0FDBB100691496 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6602E0FDBB100691496 /* KeychainHelper.swift */; };
@@ -46,7 +47,8 @@
 		D03E43FF2E12C0F600FE91E9 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		D03E44032E12DE2B00FE91E9 /* PostDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostDetailView.swift; sourceTree = "<group>"; };
 		D03E44052E12DE3800FE91E9 /* Comment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
-		D03E44072E12DFE800FE91E9 /* AllCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllCommentsView.swift; sourceTree = "<group>"; };
+                D03E44072E12DFE800FE91E9 /* AllCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllCommentsView.swift; sourceTree = "<group>"; };
+                D0F222292E70000100691496 /* UserPostsFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPostsFeedView.swift; sourceTree = "<group>"; };
 		D0DDE65C2E0FD0BA00691496 /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
 		D0DDE65E2E0FD0CB00691496 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		D0DDE6602E0FDBB100691496 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
@@ -97,9 +99,10 @@
 				D0E7494C2E377245008B42CD /* notes.swift */,
 				D03E44072E12DFE800FE91E9 /* AllCommentsView.swift */,
 				D03E44052E12DE3800FE91E9 /* Comment.swift */,
-				D03E44032E12DE2B00FE91E9 /* PostDetailView.swift */,
-				D03E43FF2E12C0F600FE91E9 /* ProfileView.swift */,
-				D0DDE6762E100F4500691496 /* ImagePicker.swift */,
+                                D03E44032E12DE2B00FE91E9 /* PostDetailView.swift */,
+                                D03E43FF2E12C0F600FE91E9 /* ProfileView.swift */,
+                                D0F222292E70000100691496 /* UserPostsFeedView.swift */,
+                                D0DDE6762E100F4500691496 /* ImagePicker.swift */,
 				D0DDE66C2E10084100691496 /* CreatePostView.swift */,
 				D0DDE66A2E10080900691496 /* PostService.swift */,
 				D0DDE6662E10079800691496 /* StorageService.swift */,
@@ -227,11 +230,12 @@
 				D0DDE6672E10079900691496 /* StorageService.swift in Sources */,
 				D0DDE6612E0FDBB100691496 /* KeychainHelper.swift in Sources */,
 				D0DDE66D2E10084100691496 /* CreatePostView.swift in Sources */,
-				D03E44062E12DE3800FE91E9 /* Comment.swift in Sources */,
-				D0DDE65F2E0FD0CB00691496 /* FeedView.swift in Sources */,
-				D0DDE6632E0FDD7A00691496 /* LoginView.swift in Sources */,
-				D03E44002E12C0F600FE91E9 /* ProfileView.swift in Sources */,
-				D0DDE65D2E0FD0BA00691496 /* Post.swift in Sources */,
+                            D03E44062E12DE3800FE91E9 /* Comment.swift in Sources */,
+                            D0DDE65F2E0FD0CB00691496 /* FeedView.swift in Sources */,
+                            D0DDE6632E0FDD7A00691496 /* LoginView.swift in Sources */,
+                            D03E44002E12C0F600FE91E9 /* ProfileView.swift in Sources */,
+                            D0F2222A2E70000100691496 /* UserPostsFeedView.swift in Sources */,
+                            D0DDE65D2E0FD0BA00691496 /* Post.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
