@@ -17,96 +17,102 @@ struct ProfileView: View {
     private let db = Firestore.firestore()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .center, spacing: 16) {
-                // Profile Picture
-                ZStack(alignment: .bottomTrailing) {
-                    if let url = profileImageURL {
-                        AsyncImage(url: url) { image in
-                            image.resizable()
-                        } placeholder: {
-                            ProgressView()
-                        }
-                        .frame(width: 100, height: 100)
-                        .clipShape(Circle())
-                    } else {
-                        Circle()
-                            .fill(Color.gray)
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .center, spacing: 16) {
+                    // Profile Picture
+                    ZStack(alignment: .bottomTrailing) {
+                        if let url = profileImageURL {
+                            AsyncImage(url: url) { image in
+                                image.resizable()
+                            } placeholder: {
+                                ProgressView()
+                            }
                             .frame(width: 100, height: 100)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(Color.gray)
+                                .frame(width: 100, height: 100)
+                        }
+
+                        Button(action: {
+                            showImagePicker = true
+                        }) {
+                            Image(systemName: "pencil.circle.fill")
+                                .foregroundColor(.blue)
+                        }
+                        .offset(x: 5, y: 5)
                     }
 
-                    Button(action: {
-                        showImagePicker = true
-                    }) {
-                        Image(systemName: "pencil.circle.fill")
-                            .foregroundColor(.blue)
+                    // Name and Bio
+                    Text(auth.currentUser?.displayName ?? auth.currentUser?.email ?? "Username")
+                        .font(.title2)
+                        .bold()
+
+                    if isEditing {
+                        TextField("Enter bio", text: $bio)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal)
+                        Button("Save") {
+                            updateBio()
+                            isEditing = false
+                        }
+                    } else {
+                        Text(bio.isEmpty ? "No bio yet." : bio)
+                            .italic()
+                            .foregroundColor(.gray)
+                        Button("Edit Bio") {
+                            isEditing = true
+                        }
                     }
-                    .offset(x: 5, y: 5)
-                }
 
-                // Name and Bio
-                Text(auth.currentUser?.displayName ?? auth.currentUser?.email ?? "Username")
-                    .font(.title2)
-                    .bold()
+                    // User's Posts Grid
+                    Text("My Posts")
+                        .font(.headline)
+                        .padding(.top)
 
-                if isEditing {
-                    TextField("Enter bio", text: $bio)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
-                    Button("Save") {
-                        updateBio()
-                        isEditing = false
-                    }
-                } else {
-                    Text(bio.isEmpty ? "No bio yet." : bio)
-                        .italic()
-                        .foregroundColor(.gray)
-                    Button("Edit Bio") {
-                        isEditing = true
-                    }
-                }
-
-                // User's Posts Grid
-                Text("My Posts")
-                    .font(.headline)
-                    .padding(.top)
-
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(userPosts) { post in
-                        VStack {
-                            AsyncImage(url: URL(string: post.imageURL)) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                case .success(let image):
-                                    image.resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(height: 100)
-                                        .clipped()
-                                        .cornerRadius(8)
-                                case .failure:
-                                    Image(systemName: "photo")
-                                @unknown default:
-                                    EmptyView()
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        ForEach(userPosts) { post in
+                            NavigationLink {
+                                UserPostsFeedView(authorID: post.authorID, authorName: post.authorName)
+                            } label: {
+                                VStack {
+                                    AsyncImage(url: URL(string: post.imageURL)) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                        case .success(let image):
+                                            image.resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(height: 100)
+                                                .clipped()
+                                                .cornerRadius(8)
+                                        case .failure:
+                                            Image(systemName: "photo")
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                    Text(post.title)
+                                        .font(.caption)
+                                        .lineLimit(1)
                                 }
                             }
-                            Text(post.title)
-                                .font(.caption)
-                                .lineLimit(1)
+                            .buttonStyle(.plain)
                         }
                     }
                 }
-
+                .padding()
             }
-            .padding()
-        }
-        .navigationTitle("Profile")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showSettings = true
-                }) {
-                    Image(systemName: "gear")
+            .navigationTitle("Profile")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showSettings = true
+                    }) {
+                        Image(systemName: "gear")
+                    }
                 }
             }
         }
