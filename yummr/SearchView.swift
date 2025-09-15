@@ -1,3 +1,11 @@
+//
+//  SearchView.swift
+//  yummr
+//
+//  Created by kuba woahz on 9/15/25.
+//
+
+
 import SwiftUI
 
 struct SearchView: View {
