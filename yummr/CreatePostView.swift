@@ -71,6 +71,7 @@ struct CreatePostView: View {
                             title: $title,
                             description: $description,
                             recipe: $recipe,
+                            ingredients: $ingredients,
                             selectedImages: $selectedImages,
                             audioTranscript: $audioTranscript
                         )

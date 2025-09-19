@@ -5,6 +5,7 @@ struct AIDraftWorkshopView: View {
     @Binding var title: String
     @Binding var description: String
     @Binding var recipe: String
+    @Binding var ingredients: [String]
     @Binding var selectedImages: [UIImage]
     @Binding var audioTranscript: String
 
@@ -13,19 +14,37 @@ struct AIDraftWorkshopView: View {
 
     @StateObject private var audioRecorder = AudioRecorderService()
 
+    @State private var customGuidance: String = ""
+    @State private var aiErrorMessage: String?
+    @State private var isDraftingWithAI: Bool = false
+    @State private var lastGeneratedDate: Date?
+    @State private var newIngredientDraft: String = ""
+    @State private var aiNotes: [String] = []
+
     private let promptPlaceholder = "Describe the meal, ingredients, or vibe you want the AI to build on..."
+
+    private var aiButtonTitle: String {
+        lastGeneratedDate == nil ? "Draft with AI" : "Regenerate with AI"
+    }
+
+    private let ingredientColumns: [GridItem] = [GridItem(.adaptive(minimum: 120), spacing: 8)]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
+                aiDraftingControls
                 promptSection
                 audioCaptureSection
                 if !capturedIdeas.isEmpty {
                     capturedIdeasSection
                 }
+                ingredientsTuningSection
                 draftSection
                 recipeSection
+                if !aiNotes.isEmpty {
+                    aiNotesSection
+                }
                 photosSection
             }
             .padding()
@@ -50,6 +69,68 @@ struct AIDraftWorkshopView: View {
                 .font(.callout)
                 .foregroundColor(.secondary)
         }
+    }
+
+    private var aiDraftingControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("AI Drafting")
+                .font(.headline)
+            Text("Combine your transcript, photos, and notes to draft a recipe. Tweak the guidance below to regenerate as needed.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+
+            ZStack(alignment: .topLeading) {
+                if customGuidance.isEmpty {
+                    Text("Optional: tell the AI about serving size, dietary notes, or the vibe you want.")
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                        .padding(.horizontal, 4)
+                }
+                TextEditor(text: $customGuidance)
+                    .frame(minHeight: 100)
+                    .padding(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+            }
+
+            Button {
+                requestAIDraft()
+            } label: {
+                Label(aiButtonTitle, systemImage: "wand.and.stars")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(isDraftingWithAI)
+
+            if isDraftingWithAI {
+                ProgressView("Drafting with Gemini…")
+                    .progressViewStyle(.circular)
+            }
+
+            if let message = aiErrorMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundColor(.red)
+            }
+
+            if !selectedImages.isEmpty {
+                Text("We'll send up to \(min(selectedImages.count, 4)) photo\(selectedImages.count == 1 ? "" : "s") for visual context.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            if let generatedDate = lastGeneratedDate {
+                Text("Last generated \(relativeTimeString(for: generatedDate)).")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
     }
 
     private var audioCaptureSection: some View {
@@ -136,6 +217,98 @@ struct AIDraftWorkshopView: View {
         return String(format: "%01d:%02d", minutes, seconds)
     }
 
+    private func requestAIDraft() {
+        Task {
+            await performDraftRequest()
+        }
+    }
+
+    @MainActor
+    private func performDraftRequest() async {
+        guard !isDraftingWithAI else { return }
+        isDraftingWithAI = true
+        aiErrorMessage = nil
+
+        do {
+            let draft = try await AIRecipeService.shared.generateDraft(
+                currentTitle: title,
+                currentDescription: description,
+                currentRecipe: recipe,
+                transcript: audioTranscript,
+                capturedIdeas: capturedIdeas,
+                customPrompt: customGuidance,
+                ingredients: ingredients,
+                images: selectedImages
+            )
+            applyAIDraft(draft)
+            lastGeneratedDate = Date()
+            aiErrorMessage = nil
+        } catch {
+            if let localized = error as? LocalizedError, let description = localized.errorDescription {
+                aiErrorMessage = description
+            } else {
+                aiErrorMessage = error.localizedDescription
+            }
+        }
+
+        isDraftingWithAI = false
+    }
+
+    @MainActor
+    private func applyAIDraft(_ draft: AIRecipeDraft) {
+        if let newTitle = draft.title?.trimmingCharacters(in: .whitespacesAndNewlines), !newTitle.isEmpty {
+            title = newTitle
+        }
+
+        let summarySource = draft.summary ?? draft.description
+        if let newSummary = summarySource?.trimmingCharacters(in: .whitespacesAndNewlines), !newSummary.isEmpty {
+            description = newSummary
+        }
+
+        if let newIngredients = draft.ingredients?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }),
+           !newIngredients.isEmpty {
+            ingredients = newIngredients
+        }
+
+        if let steps = draft.instructions?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }),
+           !steps.isEmpty {
+            let formatted = steps.enumerated().map { index, step in
+                "\(index + 1). \(step)"
+            }.joined(separator: "\n")
+            recipe = formatted
+        } else if let recipeText = draft.recipe?.trimmingCharacters(in: .whitespacesAndNewlines), !recipeText.isEmpty {
+            recipe = recipeText
+        }
+
+        if let notes = draft.notes?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }),
+           !notes.isEmpty {
+            aiNotes = notes
+        } else {
+            aiNotes = []
+        }
+    }
+
+    private func addIngredientToken() {
+        let trimmed = newIngredientDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if !ingredients.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            ingredients.append(trimmed)
+        }
+
+        newIngredientDraft = ""
+    }
+
+    private func removeIngredientToken(_ ingredient: String) {
+        ingredients.removeAll { $0.caseInsensitiveCompare(ingredient) == .orderedSame }
+    }
+
+    private func relativeTimeString(for date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
     private var promptSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Prompt Scratchpad")
@@ -213,6 +386,54 @@ struct AIDraftWorkshopView: View {
         }
     }
 
+    private var ingredientsTuningSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Ingredients & Keywords for AI")
+                .font(.headline)
+            Text("Edit the list the model will emphasize. Add shorthand notes or pantry staples that matter for this dish.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            HStack {
+                TextField("Add ingredient or descriptor", text: $newIngredientDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(addIngredientToken)
+                Button("Add") {
+                    addIngredientToken()
+                }
+                .disabled(newIngredientDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if ingredients.isEmpty {
+                Text("No ingredients listed yet. Add a few to anchor the AI's suggestions.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            } else {
+                LazyVGrid(columns: ingredientColumns, spacing: 8) {
+                    ForEach(ingredients, id: \.self) { ingredient in
+                        HStack {
+                            Text(ingredient)
+                                .font(.footnote)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 4)
+                            Button(action: { removeIngredientToken(ingredient) }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption)
+                            }
+                        }
+                        .padding(8)
+                        .background(Color.accentColor.opacity(0.12))
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
     private var draftSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Draft Details")
@@ -258,6 +479,28 @@ struct AIDraftWorkshopView: View {
                 Spacer()
             }
         }
+    }
+
+    private var aiNotesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("AI Notes")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(aiNotes, id: \.self) { note in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "lightbulb.fill")
+                            .foregroundColor(.accentColor)
+                            .font(.subheadline)
+                        Text(note)
+                            .font(.body)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
     }
 
     private var photosSection: some View {
@@ -307,6 +550,7 @@ struct AIDraftWorkshopView_Previews: PreviewProvider {
                 title: .constant("Weekend Brunch Bowl"),
                 description: .constant("A cozy bowl stacked with roasted veggies and a bright herb sauce."),
                 recipe: .constant("1. Roast vegetables\n2. Toss with sauce"),
+                ingredients: .constant(["sweet potatoes", "poached eggs", "chimichurri"]),
                 selectedImages: .constant([]),
                 audioTranscript: .constant("Toast bread. Layer greens. Finish with lemon zest.")
             )
