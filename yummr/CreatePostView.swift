@@ -65,6 +65,24 @@ struct CreatePostView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
+                    NavigationLink {
+                        AIDraftWorkshopView(
+                            title: $title,
+                            description: $description,
+                            recipe: $recipe,
+                            selectedImages: $selectedImages
+                        )
+                    } label: {
+                        Label("AI Draft", systemImage: "wand.and.stars")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentColor.opacity(0.12))
+                            .foregroundColor(Color.accentColor)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+
                     Group {
                         TextField("Title", text: $title)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
