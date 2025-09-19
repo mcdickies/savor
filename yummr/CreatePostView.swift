@@ -60,6 +60,7 @@ struct CreatePostView: View {
     @State private var tagSearchText = ""
     @State private var tagSearchResults: [AppUser] = []
     @State private var pendingTags: [PendingTag] = []
+    @State private var audioTranscript: String = ""
 
     var body: some View {
         NavigationView {
@@ -70,7 +71,8 @@ struct CreatePostView: View {
                             title: $title,
                             description: $description,
                             recipe: $recipe,
-                            selectedImages: $selectedImages
+                            selectedImages: $selectedImages,
+                            audioTranscript: $audioTranscript
                         )
                     } label: {
                         Label("AI Draft", systemImage: "wand.and.stars")
@@ -402,6 +404,10 @@ struct CreatePostView: View {
         if !ingredients.isEmpty {
             extras["ingredients"] = ingredients.joined(separator: ", ")
         }
+        let trimmedTranscript = audioTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTranscript.isEmpty {
+            extras["aiVoiceTranscript"] = trimmedTranscript
+        }
 
         PostService.shared.uploadPost(
             title: title,
@@ -432,6 +438,7 @@ struct CreatePostView: View {
                 pendingTags = []
                 selectedImages = []
                 selectedPhotos = []
+                audioTranscript = ""
             case .failure(let error):
                 errorMessage = error.localizedDescription
             }
