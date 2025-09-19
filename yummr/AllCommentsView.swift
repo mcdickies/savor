@@ -7,7 +7,7 @@
 
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct CommentThread: Identifiable {
     let comment: Comment

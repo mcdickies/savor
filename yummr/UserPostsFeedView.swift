@@ -1,6 +1,6 @@
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct UserPostsFeedView: View {
     let authorID: String

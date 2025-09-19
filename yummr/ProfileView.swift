@@ -2,7 +2,7 @@ import SwiftUI
 import Firebase
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 import FirebaseStorage
 
 struct ProfileView: View {

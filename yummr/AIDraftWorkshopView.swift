@@ -201,7 +201,8 @@ struct AIDraftWorkshopView: View {
                             .font(.headline)
                             .labelStyle(.titleAndIcon)
                     }
-                    .buttonStyle(audioRecorder.isRecording ? .borderedProminent : .bordered)
+                    .buttonStyle(.bordered)
+                    .tint(audioRecorder.isRecording ? .red : .accentColor)
                     .tint(audioRecorder.isRecording ? .red : .accentColor)
                     .disabled(!audioRecorder.hasMicrophonePermission || audioRecorder.speechAuthorizationStatus != .authorized)
 
@@ -426,35 +427,34 @@ struct AIDraftWorkshopView: View {
         }
     }
 
+   
     private var capturedIdeasSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Captured Ideas")
                 .font(.headline)
+
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(capturedIdeas.enumerated()), id: \.offset) { index, idea in
+                // Simple: iterate the strings directly (no indices, no enumerated)
+                ForEach(capturedIdeas, id: \.self) { idea in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(idea)
-                            .font(.body)
+                        Text(idea).font(.body)
+
                         HStack(spacing: 12) {
-                            Button("Apply to Title") {
-                                title = idea
-                            }
-                            Button("Apply to Description") {
-                                description = idea
-                            }
-                            Button("Append to Recipe") {
-                                appendRecipeText(idea)
-                            }
+                            Button("Apply to Title") { title = idea }
+                            Button("Apply to Description") { description = idea }
+                            Button("Append to Recipe") { appendRecipeText(idea) }
                         }
                         .font(.footnote)
                     }
                     .padding()
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .background(Color(uiColor: .secondarySystemBackground)) // avoids UIKit import ambiguity
                     .cornerRadius(12)
                     .contextMenu {
                         Button(role: .destructive) {
                             withAnimation {
-                                capturedIdeas.remove(at: index)
+                                if let i = capturedIdeas.firstIndex(of: idea) {
+                                    capturedIdeas.remove(at: i)
+                                }
                             }
                         } label: {
                             Label("Delete", systemImage: "trash")
@@ -464,6 +464,7 @@ struct AIDraftWorkshopView: View {
             }
         }
     }
+
 
     private var ingredientsTuningSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -590,52 +591,63 @@ struct AIDraftWorkshopView: View {
         .cornerRadius(12)
     }
 
+
     private var photosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Attached Photos")
-                .font(.headline)
+            Text("Attached Photos").font(.headline)
             Text("These are the images that will publish with your post.")
-                .font(.footnote)
-                .foregroundColor(.secondary)
+                .font(.footnote).foregroundColor(.secondary)
+
             if selectedImages.isEmpty {
                 Text("No photos attached yet. Add some from the composer to give the AI more context.")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
+                    .font(.callout).foregroundColor(.secondary)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
-                            ZStack(alignment: .topTrailing) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 180, height: 180)
-                                    .clipped()
-                                    .cornerRadius(16)
-                                Button {
-                                    withAnimation {
-                                        selectedImages.remove(at: index)
+                        // Use enumerated() so we can capture a stable pair (i, img) for this render pass.
+                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { pair in
+                            let i = pair.offset
+                            // If selectedImages is [UIImage], this is just `let img = pair.element`.
+                            // If it's [UIImage?], we unwrap and skip nils.
+                            if let img = (pair.element as AnyObject?) as? UIImage ?? (pair.element as? UIImage) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: img)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 180, height: 180)
+                                        .clipped()
+                                        .cornerRadius(16)
+
+                                    Button {
+                                        withAnimation {
+                                            // Safe: we remove using the captured index from this render pass.
+                                            if i < selectedImages.count {
+                                                selectedImages.remove(at: i)
+                                            }
+                                        }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.title2)
+                                            .symbolRenderingMode(.multicolor)
                                     }
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.title2)
-                                        .symbolRenderingMode(.multicolor)
+                                    .offset(x: 8, y: -8)
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove photo")
                                 }
-                                .offset(x: 8, y: -8)
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Remove photo")
                             }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
             }
         }
     }
 
+
+
     private var referencePhotosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Reference Photos for Gemini")
-                .font(.headline)
+            Text("Reference Photos for Gemini").font(.headline)
             Text("Use these only to guide the AI. They will not appear in your published post.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
@@ -665,17 +677,24 @@ struct AIDraftWorkshopView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(Array(aiReferenceImages.enumerated()), id: \.offset) { index, image in
+                        // Capture a stable (index, image) pair per render.
+                        ForEach(Array(aiReferenceImages.enumerated()), id: \.offset) { pair in
+                            let i = pair.offset
+                            let img = pair.element
+
                             ZStack(alignment: .topTrailing) {
-                                Image(uiImage: image)
+                                Image(uiImage: img) // or SwiftUI.Image(uiImage:) if disambiguation needed
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 180, height: 180)
                                     .clipped()
                                     .cornerRadius(16)
+
                                 Button {
                                     withAnimation {
-                                        aiReferenceImages.remove(at: index)
+                                        if i < aiReferenceImages.count {
+                                            aiReferenceImages.remove(at: i)
+                                        }
                                     }
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
@@ -688,10 +707,13 @@ struct AIDraftWorkshopView: View {
                             }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
             }
         }
     }
+
+
 }
 
 struct AIDraftWorkshopView_Previews: PreviewProvider {

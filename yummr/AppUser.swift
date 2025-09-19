@@ -21,7 +21,7 @@ struct AppUser: Identifiable, Codable {
     var followingCount: Int?
     var topFoods: [String]?
     var healthMetrics: [String: String]?
-
+    
     enum CodingKeys: String, CodingKey {
         case handle
         case displayName
@@ -33,3 +33,4 @@ struct AppUser: Identifiable, Codable {
         case topFoods
         case healthMetrics
     }
+}

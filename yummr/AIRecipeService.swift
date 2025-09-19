@@ -302,7 +302,7 @@ final class AIRecipeService {
         }
 
         if !capturedIdeas.isEmpty {
-            let ideasText = capturedIdeas.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: " \u2022 ")
+            let ideasText = capturedIdeas.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator:  "\u{2022} ")
             sections.append("Saved brainstorming ideas: \(ideasText)")
         }
 

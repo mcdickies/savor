@@ -1,7 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore 
 
 struct PostCard: View {
     var post: Post

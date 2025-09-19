@@ -392,15 +392,19 @@ struct CreatePostView: View {
 
         let uniqueTaggedIDs = Array(Set(pendingTags.map { $0.user.id ?? "" }.filter { !$0.isEmpty }))
 
-        let photoTags: [Post.PhotoTag] = pendingTags.compactMap { tag in
+        let photoTags: [Post.PhotoTag] = pendingTags.compactMap { (tag) -> Post.PhotoTag? in
             guard let userID = tag.user.id else { return nil }
-            guard let index = tag.imageIndex, tag.location != nil else { return nil }
-            let coordinates = tag.location?.coordinates ?? (0.5, 0.5)
-            return Post.PhotoTag(userID: userID,
-                                 imageIndex: index,
-                                 x: coordinates.x,
-                                 y: coordinates.y,
-                                 label: tag.user.displayName)
+            guard let index  = tag.imageIndex else { return nil }
+
+            // If Coordinates is a struct with x/y:
+            let coords = tag.location?.coordinates ?? (0.5, 0.5)
+            return Post.PhotoTag(
+                userID: userID,
+                imageIndex: index,
+                x: coords.0,
+                y: coords.1,
+                label: tag.user.displayName
+            )
         }
 
         var extras: [String: String] = [:]
