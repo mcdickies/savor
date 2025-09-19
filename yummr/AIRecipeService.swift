@@ -182,7 +182,12 @@ final class AIRecipeService {
         if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !envKey.isEmpty {
             return envKey
         }
-
+        if let bundleKey = Bundle.main.object(forInfoDictionaryKey: "GeminiAPIKey") as? String {
+                   let trimmed = bundleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                   if !trimmed.isEmpty {
+                       return trimmed
+                   }
+               }
         return nil
     }
 
