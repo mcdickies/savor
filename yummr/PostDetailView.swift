@@ -7,7 +7,7 @@
 
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct PostDetailView: View {
     let post: Post

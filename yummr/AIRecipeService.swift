@@ -2,13 +2,20 @@ import Foundation
 import UIKit
 
 struct AIRecipeDraft: Codable {
+    struct CreativeRange: Codable, Hashable {
+        let location: Int
+        let length: Int
+    }
+
     let title: String?
     let summary: String?
     let description: String?
     let ingredients: [String]?
-    let instructions: [String]?
+    var instructions: [String]?
     let notes: [String]?
-    let recipe: String?
+    var recipe: String?
+    var recipeCreativeRanges: [CreativeRange] = []
+    var instructionCreativeRanges: [[CreativeRange]] = []
 
     private enum CodingKeys: String, CodingKey {
         case title
@@ -121,7 +128,8 @@ final class AIRecipeService {
         capturedIdeas: [String],
         customPrompt: String,
         ingredients: [String],
-        images: [UIImage]
+        images: [UIImage],
+        referenceImages: [UIImage]
     ) async throws -> AIRecipeDraft {
         guard let apiKey = loadAPIKey() else { throw ServiceError.missingAPIKey }
         let endpoint = "\(baseURL)/\(modelName):generateContent?key=\(apiKey)"
@@ -135,7 +143,8 @@ final class AIRecipeService {
             capturedIdeas: capturedIdeas,
             customPrompt: customPrompt,
             ingredients: ingredients,
-            images: images
+            images: images,
+            referenceImages: referenceImages
         )
 
         var request = URLRequest(url: url)
@@ -157,7 +166,9 @@ final class AIRecipeService {
         guard let jsonData = text.data(using: .utf8) else { throw ServiceError.decodingFailed }
 
         do {
-            return try JSONDecoder().decode(AIRecipeDraft.self, from: jsonData)
+            var draft = try JSONDecoder().decode(AIRecipeDraft.self, from: jsonData)
+            draft.prepareCreativeMetadata()
+            return draft
         } catch {
             throw ServiceError.decodingFailed
         }
@@ -171,7 +182,12 @@ final class AIRecipeService {
         if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !envKey.isEmpty {
             return envKey
         }
-
+        if let bundleKey = Bundle.main.object(forInfoDictionaryKey: "GeminiAPIKey") as? String {
+                   let trimmed = bundleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                   if !trimmed.isEmpty {
+                       return trimmed
+                   }
+               }
         return nil
     }
 
@@ -183,7 +199,8 @@ final class AIRecipeService {
         capturedIdeas: [String],
         customPrompt: String,
         ingredients: [String],
-        images: [UIImage]
+        images: [UIImage],
+        referenceImages: [UIImage]
     ) throws -> Data {
         let infoSections = buildInfoSections(
             title: title,
@@ -192,23 +209,28 @@ final class AIRecipeService {
             transcript: transcript,
             capturedIdeas: capturedIdeas,
             customPrompt: customPrompt,
-            ingredients: ingredients
+            ingredients: ingredients,
+            publicImageCount: min(images.count, 4),
+            referenceImageCount: min(referenceImages.count, 4)
         )
 
         var parts: [GeminiRequest.Part] = [
             GeminiRequest.Part(text: infoSections, inlineData: nil)
         ]
 
-        let encodedImages: [GeminiRequest.Part] = images
-            .prefix(4)
-            .compactMap { image in
-                guard let data = image.jpegData(compressionQuality: 0.7) else { return nil }
-                let base64 = data.base64EncodedString()
-                let inline = GeminiRequest.InlineData(mimeType: "image/jpeg", data: base64)
-                return GeminiRequest.Part(text: nil, inlineData: inline)
-            }
-
+        let encodedImages = encodedParts(for: images)
         parts.append(contentsOf: encodedImages)
+
+        if !referenceImages.isEmpty {
+            parts.append(
+                GeminiRequest.Part(
+                    text: "Reference-only context images follow. They should inform the draft but are not part of the published gallery.",
+                    inlineData: nil
+                )
+            )
+            let referenceParts = encodedParts(for: referenceImages)
+            parts.append(contentsOf: referenceParts)
+        }
 
         let request = GeminiRequest(
             contents: [
@@ -227,6 +249,17 @@ final class AIRecipeService {
         return try JSONEncoder().encode(request)
     }
 
+    private func encodedParts(for images: [UIImage], limit: Int = 4) -> [GeminiRequest.Part] {
+        images
+            .prefix(limit)
+            .compactMap { image in
+                guard let data = image.jpegData(compressionQuality: 0.7) else { return nil }
+                let base64 = data.base64EncodedString()
+                let inline = GeminiRequest.InlineData(mimeType: "image/jpeg", data: base64)
+                return GeminiRequest.Part(text: nil, inlineData: inline)
+            }
+    }
+
     private func buildInfoSections(
         title: String,
         description: String,
@@ -234,7 +267,9 @@ final class AIRecipeService {
         transcript: String,
         capturedIdeas: [String],
         customPrompt: String,
-        ingredients: [String]
+        ingredients: [String],
+        publicImageCount: Int,
+        referenceImageCount: Int
     ) -> String {
         var sections: [String] = []
 
@@ -242,6 +277,14 @@ final class AIRecipeService {
         sections.append("Use the following inputs to craft a concise recipe draft.")
         sections.append("Return only JSON with this structure (replace the placeholders with real values): {\"title\": \"...\", \"summary\": \"...\", \"ingredients\": [\"...\"], \"instructions\": [\"...\"], \"notes\": [\"...\"], \"recipe\": \"...\" }.")
         sections.append("Do not include markdown, explanations, or any text outside of that JSON object.")
+
+        if publicImageCount > 0 {
+            sections.append("Primary post photos provided (up to \(publicImageCount)). These appear in the published gallery.")
+        }
+
+        if referenceImageCount > 0 {
+            sections.append("Reference-only photos provided (up to \(referenceImageCount)). They are for context only and should not be described as final attachments.")
+        }
 
         if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             sections.append("Current title: \(title)")
@@ -264,7 +307,7 @@ final class AIRecipeService {
         }
 
         if !capturedIdeas.isEmpty {
-            let ideasText = capturedIdeas.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: " \u2022 ")
+            let ideasText = capturedIdeas.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator:  "\u{2022} ")
             sections.append("Saved brainstorming ideas: \(ideasText)")
         }
 
@@ -283,5 +326,121 @@ final class AIRecipeService {
         let combined = candidate.content.parts.compactMap { $0.text }.joined(separator: "\n")
         let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+extension AIRecipeDraft {
+    mutating func prepareCreativeMetadata() {
+        if let recipeText = recipe {
+            var result = CreativeMarkerParser.parse(recipeText)
+            CreativeMarkerParser.trimWhitespace(from: &result.cleaned, ranges: &result.ranges)
+            recipe = result.cleaned
+            recipeCreativeRanges = result.ranges
+        }
+
+        if let steps = instructions {
+            var sanitizedSteps: [String] = []
+            var collected: [[CreativeRange]] = []
+            for step in steps {
+                var result = CreativeMarkerParser.parse(step)
+                CreativeMarkerParser.trimWhitespace(from: &result.cleaned, ranges: &result.ranges)
+                guard !result.cleaned.isEmpty else { continue }
+                sanitizedSteps.append(result.cleaned)
+                collected.append(result.ranges)
+            }
+            instructions = sanitizedSteps
+            instructionCreativeRanges = collected
+        }
+    }
+}
+
+private enum CreativeMarkerParser {
+    static func parse(_ input: String) -> (cleaned: String, ranges: [AIRecipeDraft.CreativeRange]) {
+        guard !input.isEmpty else { return ("", []) }
+
+        var output = ""
+        var ranges: [AIRecipeDraft.CreativeRange] = []
+        var searchIndex = input.startIndex
+        var currentLocation = 0
+
+        while searchIndex < input.endIndex {
+            guard let openRange = input[searchIndex...].range(of: "<creative>") else {
+                let remaining = input[searchIndex..<input.endIndex]
+                output.append(contentsOf: remaining)
+                currentLocation += remaining.count
+                break
+            }
+
+            let before = input[searchIndex..<openRange.lowerBound]
+            output.append(contentsOf: before)
+            currentLocation += before.count
+
+            let contentStart = openRange.upperBound
+            guard let closeRange = input[contentStart...].range(of: "</creative>") else {
+                let remainder = input[contentStart..<input.endIndex]
+                let creativeString = String(remainder)
+                if !creativeString.isEmpty {
+                    ranges.append(.init(location: currentLocation, length: creativeString.count))
+                    output.append(creativeString)
+                }
+                return (output, ranges)
+            }
+
+            let creativeContent = input[contentStart..<closeRange.lowerBound]
+            let creativeString = String(creativeContent)
+            if !creativeString.isEmpty {
+                ranges.append(.init(location: currentLocation, length: creativeString.count))
+                output.append(creativeString)
+                currentLocation += creativeString.count
+            }
+
+            searchIndex = closeRange.upperBound
+        }
+
+        return (output, ranges)
+    }
+
+    static func trimWhitespace(from text: inout String, ranges: inout [AIRecipeDraft.CreativeRange]) {
+        guard !text.isEmpty else { return }
+
+        let whitespace = CharacterSet.whitespacesAndNewlines
+        var leadingTrim = 0
+
+        var start = text.startIndex
+        while start < text.endIndex,
+              text[start].unicodeScalars.allSatisfy({ whitespace.contains($0) }) {
+            start = text.index(after: start)
+            leadingTrim += 1
+        }
+
+        var end = text.endIndex
+        while end > start {
+            let before = text.index(before: end)
+            if text[before].unicodeScalars.allSatisfy({ whitespace.contains($0) }) {
+                end = before
+            } else {
+                break
+            }
+        }
+
+        if leadingTrim == 0 && end == text.endIndex { return }
+
+        text = String(text[start..<end])
+        let trimmedLength = text.count
+        var adjusted: [AIRecipeDraft.CreativeRange] = []
+
+        for range in ranges {
+            let startPosition = range.location - leadingTrim
+            let endPosition = range.location + range.length - leadingTrim
+            if endPosition <= 0 { continue }
+            let clampedStart = max(0, startPosition)
+            let clampedEnd = min(endPosition, trimmedLength)
+            let newLength = clampedEnd - clampedStart
+            if newLength > 0 {
+                adjusted.append(.init(location: clampedStart, length: newLength))
+            }
+        }
+
+        ranges = adjusted
     }
 }

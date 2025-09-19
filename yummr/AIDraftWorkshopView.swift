@@ -1,12 +1,14 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 
 struct AIDraftWorkshopView: View {
     @Binding var title: String
     @Binding var description: String
-    @Binding var recipe: String
+    @Binding var recipe: AttributedString
     @Binding var ingredients: [String]
     @Binding var selectedImages: [UIImage]
+    @Binding var aiReferenceImages: [UIImage]
     @Binding var audioTranscript: String
 
     @State private var ideaPrompt: String = ""
@@ -20,6 +22,9 @@ struct AIDraftWorkshopView: View {
     @State private var lastGeneratedDate: Date?
     @State private var newIngredientDraft: String = ""
     @State private var aiNotes: [String] = []
+    @State private var referencePhotoItems: [PhotosPickerItem] = []
+    @State private var showReferenceCamera: Bool = false
+    @State private var capturedReferenceImage: UIImage?
 
     private let promptPlaceholder = "Describe the meal, ingredients, or vibe you want the AI to build on..."
 
@@ -28,6 +33,27 @@ struct AIDraftWorkshopView: View {
     }
 
     private let ingredientColumns: [GridItem] = [GridItem(.adaptive(minimum: 120), spacing: 8)]
+    private let creativeHighlightColor = UIColor.systemBlue.withAlphaComponent(0.2)
+
+    private var contextImagesMessage: String? {
+        let publishedCount = min(selectedImages.count, 4)
+        let referenceCount = min(aiReferenceImages.count, 4)
+
+        switch (publishedCount, referenceCount) {
+        case (0, 0):
+            return nil
+        case (let post, 0):
+            let suffix = post == 1 ? "" : "s"
+            return "We'll send up to \(post) post photo\(suffix) for visual context."
+        case (0, let reference):
+            let suffix = reference == 1 ? "" : "s"
+            return "We'll send up to \(reference) private reference photo\(suffix) for visual context."
+        case (let post, let reference):
+            let postSuffix = post == 1 ? "" : "s"
+            let referenceSuffix = reference == 1 ? "" : "s"
+            return "We'll send up to \(post) post photo\(postSuffix) and \(reference) private reference photo\(referenceSuffix) for visual context."
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -46,6 +72,7 @@ struct AIDraftWorkshopView: View {
                     aiNotesSection
                 }
                 photosSection
+                referencePhotosSection
             }
             .padding()
         }
@@ -57,6 +84,29 @@ struct AIDraftWorkshopView: View {
         .onReceive(audioRecorder.$transcript) { transcript in
             guard !transcript.isEmpty else { return }
             audioTranscript = transcript
+        }
+        .sheet(isPresented: $showReferenceCamera) {
+            ImagePicker(image: $capturedReferenceImage, sourceType: .camera)
+        }
+        .onChange(of: referencePhotoItems) { items in
+            Task {
+                var loadedImages: [UIImage] = []
+                for item in items {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        loadedImages.append(image)
+                    }
+                }
+                if !loadedImages.isEmpty {
+                    aiReferenceImages.append(contentsOf: loadedImages)
+                }
+                referencePhotoItems = []
+            }
+        }
+        .onChange(of: capturedReferenceImage) { image in
+            guard let image = image else { return }
+            aiReferenceImages.append(image)
+            capturedReferenceImage = nil
         }
     }
 
@@ -116,8 +166,8 @@ struct AIDraftWorkshopView: View {
                     .foregroundColor(.red)
             }
 
-            if !selectedImages.isEmpty {
-                Text("We'll send up to \(min(selectedImages.count, 4)) photo\(selectedImages.count == 1 ? "" : "s") for visual context.")
+            if let message = contextImagesMessage {
+                Text(message)
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
@@ -151,7 +201,8 @@ struct AIDraftWorkshopView: View {
                             .font(.headline)
                             .labelStyle(.titleAndIcon)
                     }
-                    .buttonStyle(audioRecorder.isRecording ? .borderedProminent : .bordered)
+                    .buttonStyle(.bordered)
+                    .tint(audioRecorder.isRecording ? .red : .accentColor)
                     .tint(audioRecorder.isRecording ? .red : .accentColor)
                     .disabled(!audioRecorder.hasMicrophonePermission || audioRecorder.speechAuthorizationStatus != .authorized)
 
@@ -233,12 +284,13 @@ struct AIDraftWorkshopView: View {
             let draft = try await AIRecipeService.shared.generateDraft(
                 currentTitle: title,
                 currentDescription: description,
-                currentRecipe: recipe,
+                currentRecipe: recipe.plainText,
                 transcript: audioTranscript,
                 capturedIdeas: capturedIdeas,
                 customPrompt: customGuidance,
                 ingredients: ingredients,
-                images: selectedImages
+                images: selectedImages,
+                referenceImages: aiReferenceImages
             )
             applyAIDraft(draft)
             lastGeneratedDate = Date()
@@ -270,14 +322,21 @@ struct AIDraftWorkshopView: View {
             ingredients = newIngredients
         }
 
-        if let steps = draft.instructions?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }),
-           !steps.isEmpty {
-            let formatted = steps.enumerated().map { index, step in
-                "\(index + 1). \(step)"
-            }.joined(separator: "\n")
-            recipe = formatted
-        } else if let recipeText = draft.recipe?.trimmingCharacters(in: .whitespacesAndNewlines), !recipeText.isEmpty {
-            recipe = recipeText
+        if let steps = draft.instructions, !steps.isEmpty {
+            var combined = AttributedString()
+            for (index, step) in steps.enumerated() {
+                var line = AttributedString("\(index + 1). ")
+                let ranges = index < draft.instructionCreativeRanges.count ? draft.instructionCreativeRanges[index] : []
+                let highlighted = makeAttributedRecipe(text: step, ranges: ranges)
+                line.append(highlighted)
+                if index < steps.count - 1 {
+                    line.append(AttributedString("\n"))
+                }
+                combined.append(line)
+            }
+            recipe = combined
+        } else if let recipeText = draft.recipe, !recipeText.isEmpty {
+            recipe = makeAttributedRecipe(text: recipeText, ranges: draft.recipeCreativeRanges)
         }
 
         if let notes = draft.notes?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }),
@@ -285,6 +344,31 @@ struct AIDraftWorkshopView: View {
             aiNotes = notes
         } else {
             aiNotes = []
+        }
+    }
+
+    private func makeAttributedRecipe(text: String, ranges: [AIRecipeDraft.CreativeRange]) -> AttributedString {
+        let mutable = NSMutableAttributedString(string: text)
+        let highlight = creativeHighlightColor
+
+        for range in ranges {
+            let nsRange = NSRange(location: range.location, length: range.length)
+            guard nsRange.location >= 0, NSMaxRange(nsRange) <= mutable.length else { continue }
+            mutable.addAttribute(.backgroundColor, value: highlight, range: nsRange)
+        }
+
+        return AttributedString(mutable)
+    }
+
+    private func appendRecipeText(_ text: String) {
+        var updated = recipe
+        let addition = AttributedString(text)
+        if recipe.characters.isEmpty {
+            recipe = addition
+        } else {
+            updated.append(AttributedString("\n\n"))
+            updated.append(addition)
+            recipe = updated
         }
     }
 
@@ -343,39 +427,34 @@ struct AIDraftWorkshopView: View {
         }
     }
 
+   
     private var capturedIdeasSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Captured Ideas")
                 .font(.headline)
+
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(capturedIdeas.enumerated()), id: \.offset) { index, idea in
+                // Simple: iterate the strings directly (no indices, no enumerated)
+                ForEach(capturedIdeas, id: \.self) { idea in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(idea)
-                            .font(.body)
+                        Text(idea).font(.body)
+
                         HStack(spacing: 12) {
-                            Button("Apply to Title") {
-                                title = idea
-                            }
-                            Button("Apply to Description") {
-                                description = idea
-                            }
-                            Button("Append to Recipe") {
-                                if recipe.isEmpty {
-                                    recipe = idea
-                                } else {
-                                    recipe += "\n\n" + idea
-                                }
-                            }
+                            Button("Apply to Title") { title = idea }
+                            Button("Apply to Description") { description = idea }
+                            Button("Append to Recipe") { appendRecipeText(idea) }
                         }
                         .font(.footnote)
                     }
                     .padding()
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .background(Color(uiColor: .secondarySystemBackground)) // avoids UIKit import ambiguity
                     .cornerRadius(12)
                     .contextMenu {
                         Button(role: .destructive) {
                             withAnimation {
-                                capturedIdeas.remove(at: index)
+                                if let i = capturedIdeas.firstIndex(of: idea) {
+                                    capturedIdeas.remove(at: i)
+                                }
                             }
                         } label: {
                             Label("Delete", systemImage: "trash")
@@ -385,6 +464,7 @@ struct AIDraftWorkshopView: View {
             }
         }
     }
+
 
     private var ingredientsTuningSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -464,16 +544,24 @@ struct AIDraftWorkshopView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recipe")
                 .font(.headline)
-            TextEditor(text: $recipe)
-                .frame(minHeight: 180)
-                .padding(4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                )
+            ZStack(alignment: .topLeading) {
+                if recipe.characters.isEmpty {
+                    Text("Write step-by-step instructions...")
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                        .padding(.horizontal, 8)
+                }
+                RichTextEditor(text: $recipe)
+                    .frame(minHeight: 180)
+                    .padding(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+            }
             HStack {
                 Button("Clear Recipe") {
-                    recipe = ""
+                    recipe = AttributedString()
                 }
                 .buttonStyle(.bordered)
                 Spacer()
@@ -503,28 +591,110 @@ struct AIDraftWorkshopView: View {
         .cornerRadius(12)
     }
 
+
     private var photosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Attached Photos")
-                .font(.headline)
+            Text("Attached Photos").font(.headline)
+            Text("These are the images that will publish with your post.")
+                .font(.footnote).foregroundColor(.secondary)
+
             if selectedImages.isEmpty {
                 Text("No photos attached yet. Add some from the composer to give the AI more context.")
+                    .font(.callout).foregroundColor(.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        // Use enumerated() so we can capture a stable pair (i, img) for this render pass.
+                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { pair in
+                            let i = pair.offset
+                            // If selectedImages is [UIImage], this is just `let img = pair.element`.
+                            // If it's [UIImage?], we unwrap and skip nils.
+                            if let img = (pair.element as AnyObject?) as? UIImage ?? (pair.element as? UIImage) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: img)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 180, height: 180)
+                                        .clipped()
+                                        .cornerRadius(16)
+
+                                    Button {
+                                        withAnimation {
+                                            // Safe: we remove using the captured index from this render pass.
+                                            if i < selectedImages.count {
+                                                selectedImages.remove(at: i)
+                                            }
+                                        }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.title2)
+                                            .symbolRenderingMode(.multicolor)
+                                    }
+                                    .offset(x: 8, y: -8)
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove photo")
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+
+
+    private var referencePhotosSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Reference Photos for Gemini").font(.headline)
+            Text("Use these only to guide the AI. They will not appear in your published post.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 16) {
+                PhotosPicker(
+                    selection: $referencePhotoItems,
+                    maxSelectionCount: 4,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label("Add Reference Photos", systemImage: "photo.on.rectangle")
+                }
+
+                Button {
+                    showReferenceCamera = true
+                } label: {
+                    Label("Capture Reference", systemImage: "camera")
+                }
+                .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
+            }
+
+            if aiReferenceImages.isEmpty {
+                Text("No private reference photos yet. Add a few to give Gemini extra context.")
                     .font(.callout)
                     .foregroundColor(.secondary)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, image in
+                        // Capture a stable (index, image) pair per render.
+                        ForEach(Array(aiReferenceImages.enumerated()), id: \.offset) { pair in
+                            let i = pair.offset
+                            let img = pair.element
+
                             ZStack(alignment: .topTrailing) {
-                                Image(uiImage: image)
+                                Image(uiImage: img) // or SwiftUI.Image(uiImage:) if disambiguation needed
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 180, height: 180)
                                     .clipped()
                                     .cornerRadius(16)
+
                                 Button {
                                     withAnimation {
-                                        selectedImages.remove(at: index)
+                                        if i < aiReferenceImages.count {
+                                            aiReferenceImages.remove(at: i)
+                                        }
                                     }
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
@@ -533,14 +703,17 @@ struct AIDraftWorkshopView: View {
                                 }
                                 .offset(x: 8, y: -8)
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("Remove photo")
+                                .accessibilityLabel("Remove reference photo")
                             }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
             }
         }
     }
+
+
 }
 
 struct AIDraftWorkshopView_Previews: PreviewProvider {
@@ -549,9 +722,10 @@ struct AIDraftWorkshopView_Previews: PreviewProvider {
             AIDraftWorkshopView(
                 title: .constant("Weekend Brunch Bowl"),
                 description: .constant("A cozy bowl stacked with roasted veggies and a bright herb sauce."),
-                recipe: .constant("1. Roast vegetables\n2. Toss with sauce"),
+                recipe: .constant(AttributedString("1. Roast vegetables\n2. Toss with sauce")),
                 ingredients: .constant(["sweet potatoes", "poached eggs", "chimichurri"]),
                 selectedImages: .constant([]),
+                aiReferenceImages: .constant([]),
                 audioTranscript: .constant("Toast bread. Layer greens. Finish with lemon zest.")
             )
         }

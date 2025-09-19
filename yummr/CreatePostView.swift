@@ -39,11 +39,12 @@ struct CreatePostView: View {
 
     @State private var title = ""
     @State private var description = ""
-    @State private var recipe = ""
+    @State private var recipe: AttributedString = AttributedString()
     @State private var cookTime = ""
     @State private var ingredients: [String] = []
     @State private var ingredientDraft = ""
     @State private var selectedImages: [UIImage] = []
+    @State private var aiReferenceImages: [UIImage] = []
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var uploadProgress: [Double] = []
     @State private var editMode: EditMode = .inactive
@@ -73,6 +74,7 @@ struct CreatePostView: View {
                             recipe: $recipe,
                             ingredients: $ingredients,
                             selectedImages: $selectedImages,
+                            aiReferenceImages: $aiReferenceImages,
                             audioTranscript: $audioTranscript
                         )
                     } label: {
@@ -97,12 +99,12 @@ struct CreatePostView: View {
                             Text("Recipe Instructions")
                                 .font(.headline)
                             ZStack(alignment: .topLeading) {
-                                if recipe.isEmpty {
+                                if recipe.characters.isEmpty {
                                     Text("Write step-by-step instructions...")
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(.secondary)
                                         .padding(EdgeInsets(top: 8, leading: 4, bottom: 0, trailing: 0))
                                 }
-                                TextEditor(text: $recipe)
+                                RichTextEditor(text: $recipe)
                                     .frame(minHeight: 120)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
@@ -390,15 +392,19 @@ struct CreatePostView: View {
 
         let uniqueTaggedIDs = Array(Set(pendingTags.map { $0.user.id ?? "" }.filter { !$0.isEmpty }))
 
-        let photoTags: [Post.PhotoTag] = pendingTags.compactMap { tag in
+        let photoTags: [Post.PhotoTag] = pendingTags.compactMap { (tag) -> Post.PhotoTag? in
             guard let userID = tag.user.id else { return nil }
-            guard let index = tag.imageIndex, tag.location != nil else { return nil }
-            let coordinates = tag.location?.coordinates ?? (0.5, 0.5)
-            return Post.PhotoTag(userID: userID,
-                                 imageIndex: index,
-                                 x: coordinates.x,
-                                 y: coordinates.y,
-                                 label: tag.user.displayName)
+            guard let index  = tag.imageIndex else { return nil }
+
+            // If Coordinates is a struct with x/y:
+            let coords = tag.location?.coordinates ?? (0.5, 0.5)
+            return Post.PhotoTag(
+                userID: userID,
+                imageIndex: index,
+                x: coords.0,
+                y: coords.1,
+                label: tag.user.displayName
+            )
         }
 
         var extras: [String: String] = [:]
@@ -410,10 +416,12 @@ struct CreatePostView: View {
             extras["aiVoiceTranscript"] = trimmedTranscript
         }
 
+        let recipeText = recipe.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+
         PostService.shared.uploadPost(
             title: title,
             description: description,
-            recipe: recipe.isEmpty ? nil : recipe,
+            recipe: recipeText.isEmpty ? nil : recipeText,
             cookTime: cookTime.isEmpty ? nil : cookTime,
             taggedUserIDs: uniqueTaggedIDs,
             photoTags: photoTags,
@@ -433,13 +441,14 @@ struct CreatePostView: View {
                 uploadSuccess = true
                 title = ""
                 description = ""
-                recipe = ""
+                recipe = AttributedString()
                 cookTime = ""
                 ingredients = []
                 pendingTags = []
                 selectedImages = []
                 selectedPhotos = []
                 audioTranscript = ""
+                aiReferenceImages = []
             case .failure(let error):
                 errorMessage = error.localizedDescription
             }
