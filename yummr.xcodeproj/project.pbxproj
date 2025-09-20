@@ -10,9 +10,10 @@
 		20EE8CD89FDC41D0A46F8425 /* UserPostsFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFE0121D6E54FB8907793A3 /* UserPostsFeedView.swift */; };
 		D03A82CF2E0F85C000AA7342 /* yummrApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03A82CE2E0F85C000AA7342 /* yummrApp.swift */; };
 		D03A82D32E0F85C400AA7342 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D03A82D22E0F85C400AA7342 /* Assets.xcassets */; };
-		D03A82D62E0F85C400AA7342 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D03A82D52E0F85C400AA7342 /* Preview Assets.xcassets */; };
-		D03A82DD2E0F865A00AA7342 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */; };
-		D03A834C2E0F8A7A00AA7342 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03A834B2E0F8A7900AA7342 /* AuthService.swift */; };
+                D03A82D62E0F85C400AA7342 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D03A82D52E0F85C400AA7342 /* Preview Assets.xcassets */; };
+                D03A82DD2E0F865A00AA7342 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */; };
+                40454A4DFB9CEE4BA39CABBB /* GeminiSecrets.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4BF1CEA6F29C4242173CE3B0 /* GeminiSecrets.plist */; };
+                D03A834C2E0F8A7A00AA7342 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03A834B2E0F8A7900AA7342 /* AuthService.swift */; };
 		D03A834E2E0F8A9500AA7342 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03A834D2E0F8A9500AA7342 /* RootView.swift */; };
 		D03A83502E0F8AAD00AA7342 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03A834F2E0F8AAD00AA7342 /* AuthView.swift */; };
 		D03A838C2E0F9E9600AA7342 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = D03A838B2E0F9E9600AA7342 /* FirebaseFirestore */; };
@@ -50,8 +51,9 @@
 		D03A82CE2E0F85C000AA7342 /* yummrApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = yummrApp.swift; sourceTree = "<group>"; };
 		D03A82D22E0F85C400AA7342 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D03A82D52E0F85C400AA7342 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-		D03A834B2E0F8A7900AA7342 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+                D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+                4BF1CEA6F29C4242173CE3B0 /* GeminiSecrets.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GeminiSecrets.plist; sourceTree = "<group>"; };
+                D03A834B2E0F8A7900AA7342 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		D03A834D2E0F8A9500AA7342 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D03A834F2E0F8AAD00AA7342 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		D03E43FF2E12C0F600FE91E9 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
@@ -155,9 +157,10 @@
 				D0DDE65C2E0FD0BA00691496 /* Post.swift */,
 				D0B8CA0D2E7D055500E5233D /* AIDraftWorkshopView.swift */,
 				D03A82CE2E0F85C000AA7342 /* yummrApp.swift */,
-				D03A82D22E0F85C400AA7342 /* Assets.xcassets */,
-				D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */,
-				D03A82D42E0F85C400AA7342 /* Preview Content */,
+                                D03A82D22E0F85C400AA7342 /* Assets.xcassets */,
+                                D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */,
+                                4BF1CEA6F29C4242173CE3B0 /* GeminiSecrets.plist */,
+                                D03A82D42E0F85C400AA7342 /* Preview Content */,
 				D03A834B2E0F8A7900AA7342 /* AuthService.swift */,
 				D03A834D2E0F8A9500AA7342 /* RootView.swift */,
 				D03A834F2E0F8AAD00AA7342 /* AuthView.swift */,
@@ -246,11 +249,12 @@
 		D03A82C92E0F85C000AA7342 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				D03A82D62E0F85C400AA7342 /* Preview Assets.xcassets in Resources */,
-				D03A82D32E0F85C400AA7342 /* Assets.xcassets in Resources */,
-				D03A82DD2E0F865A00AA7342 /* GoogleService-Info.plist in Resources */,
-			);
+                        files = (
+                                D03A82D62E0F85C400AA7342 /* Preview Assets.xcassets in Resources */,
+                                D03A82D32E0F85C400AA7342 /* Assets.xcassets in Resources */,
+                                D03A82DD2E0F865A00AA7342 /* GoogleService-Info.plist in Resources */,
+                                40454A4DFB9CEE4BA39CABBB /* GeminiSecrets.plist in Resources */,
+                        );
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -425,7 +429,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Savor.;
-				INFOPLIST_KEY_GeminiAPIKey = AIzaSyBwpY4pBfmBU4dXyzth0XNODN7dy6iNC5U;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Explain why Savor needs microphone access (e.g., To record your cooking notes).";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Explain why Savor performs speech recognition (e.g., To transcribe your recorded notes).";
@@ -459,7 +462,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Savor.;
-				INFOPLIST_KEY_GeminiAPIKey = AIzaSyBwpY4pBfmBU4dXyzth0XNODN7dy6iNC5U;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Explain why Savor needs microphone access (e.g., To record your cooking notes).";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Explain why Savor performs speech recognition (e.g., To transcribe your recorded notes).";
