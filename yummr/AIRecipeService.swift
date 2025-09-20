@@ -175,20 +175,33 @@ final class AIRecipeService {
     }
 
     private func loadAPIKey() -> String? {
-        if let key = KeychainHelper.load(Self.apiKeyKey)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-            return key
+        if let storedKey = sanitizedKey(from: KeychainHelper.load(Self.apiKeyKey)) {
+            return storedKey
         }
 
-        if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !envKey.isEmpty {
-            return envKey
+        if let secretsURL = Bundle.main.url(forResource: "GeminiSecrets", withExtension: "plist"),
+           let secrets = NSDictionary(contentsOf: secretsURL),
+           let bundledKey = secrets["GeminiAPIKey"] as? String,
+           let sanitizedBundledKey = sanitizedKey(from: bundledKey) {
+            return sanitizedBundledKey
         }
-        if let bundleKey = Bundle.main.object(forInfoDictionaryKey: "GeminiAPIKey") as? String {
-                   let trimmed = bundleKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                   if !trimmed.isEmpty {
-                       return trimmed
-                   }
-               }
+
+        if let environmentKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"],
+           let sanitizedEnvironmentKey = sanitizedKey(from: environmentKey) {
+            return sanitizedEnvironmentKey
+        }
+
         return nil
+    }
+
+    private func sanitizedKey(from rawKey: String?) -> String? {
+        guard let trimmed = rawKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        KeychainHelper.save(Self.apiKeyKey, trimmed)
+        return trimmed
     }
 
     private func makeRequestBody(
