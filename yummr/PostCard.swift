@@ -1,14 +1,12 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFirestore 
 
 struct PostCard: View {
     var post: Post
     @State private var likeCount: Int
     @State private var isLiked: Bool
     @State private var isProcessingLike = false
-    @State private var previewComments: [Comment] = []
     @State private var showAllComments = false
     @State private var commentCount = 0
     @State private var showTagsOverlay = false
@@ -22,100 +20,108 @@ struct PostCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(post.title)
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            header
 
-            NavigationLink(destination: ProfileView(userID: post.authorID)) {
-                Text("By \(post.authorName)")
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
+            if let caption = captionText {
+                Text(caption)
+                    .appTextStyle(.body)
+                    .foregroundColor(.primary)
             }
-            .buttonStyle(.plain)
 
             tabbedImages
 
-            if let cookTime = post.cookTime, !cookTime.isEmpty {
-                Label(cookTime, systemImage: "clock")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Text(post.description)
-                .font(.body)
-
-            if !post.taggedUserIDs.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(sortedTaggedUsers, id: \.handle) { user in
-                            NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
-                                Text("@\(user.handle)")
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(12)
-                            }
-                            .buttonStyle(.plain)
-                        }
+            if !post.photoTags.isEmpty {
+                Button {
+                    withAnimation(.easeInOut) {
+                        showTagsOverlay.toggle()
                     }
+                } label: {
+                    Label(showTagsOverlay ? "Hide tags" : "Show tags", systemImage: showTagsOverlay ? "tag.fill" : "tag")
+                        .appTextStyle(.caption, weight: .medium)
+                        .foregroundColor(.accentColor)
                 }
+                .buttonStyle(.plain)
             }
 
-            HStack(spacing: 10) {
-                Button(action: toggleLike) {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .foregroundColor(isLiked ? .red : .gray)
-                }
-                Text("\(likeCount)")
-                    .foregroundColor(.gray)
-                    .font(.subheadline)
-
-                Spacer()
-
-                if !post.photoTags.isEmpty {
-                    Button {
-                        withAnimation {
-                            showTagsOverlay.toggle()
-                        }
-                    } label: {
-                        Image(systemName: showTagsOverlay ? "tag.fill" : "tag")
-                    }
-                }
-            }
-            .padding(.top, 4)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(previewComments.prefix(2)) { comment in
-                    commentRow(comment)
-                }
-
-                if commentCount > 2 {
-                    Button("View all comments") {
-                        showAllComments = true
-                    }
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                }
-
-                Button("Open comments") {
-                    showAllComments = true
-                }
-                .font(.caption)
-                .foregroundColor(.blue)
-            }
+            interactionBar
         }
         .padding()
         .background(Color(UIColor.systemGray6))
-        .cornerRadius(12)
+        .cornerRadius(16)
         .onAppear {
-            fetchPreviewComments()
+            fetchCommentCount()
             fetchTaggedUsers()
         }
         .sheet(isPresented: $showAllComments, onDismiss: {
-            fetchPreviewComments()
+            fetchCommentCount()
         }) {
             AllCommentsView(post: post)
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(post.title)
+                    .appTextStyle(.title3, weight: .semibold)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
+
+                Spacer()
+
+                if let rating = post.starRating {
+                    StarRatingView(rating: rating)
+                }
+
+                if post.isFavorited {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.yellow)
+                        .font(.caption)
+                        .accessibilityLabel("Favorited")
+                }
+            }
+
+            Text("by \(post.authorName)")
+                .appTextStyle(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var interactionBar: some View {
+        HStack(spacing: 16) {
+            Button(action: toggleLike) {
+                HStack(spacing: 6) {
+                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                        .foregroundColor(isLiked ? .red : .secondary)
+                    Text("\(likeCount)")
+                        .appTextStyle(.subheadline, weight: .medium)
+                        .foregroundColor(.primary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button {
+                showAllComments = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bubble.right")
+                        .foregroundColor(.secondary)
+                    Text(commentCount == 0 ? "Comment" : "\(commentCount) comments")
+                        .appTextStyle(.subheadline, weight: .medium)
+                        .foregroundColor(.accentColor)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 4)
+    }
+
+    private var captionText: String? {
+        let trimmed = post.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var tabbedImages: some View {
@@ -129,6 +135,7 @@ struct PostCard: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
+
                         if showTagsOverlay {
                             ForEach(tags(for: item.offset), id: \.id) { tag in
                                 tagOverlay(tag: tag, geometry: geometry)
@@ -137,7 +144,7 @@ struct PostCard: View {
                     }
                 }
                 .frame(height: 300)
-                .cornerRadius(12)
+                .cornerRadius(16)
                 .padding(.bottom, 4)
                 .tag(item.offset)
             }
@@ -153,7 +160,7 @@ struct PostCard: View {
         return Group {
             if let position = position {
                 Text(label)
-                    .font(.caption2)
+                    .appTextStyle(.caption2, weight: .semibold)
                     .padding(6)
                     .background(Color.black.opacity(0.7))
                     .foregroundColor(.white)
@@ -183,36 +190,38 @@ struct PostCard: View {
         return "@\(tag.userID.prefix(6))"
     }
 
-    private var sortedTaggedUsers: [AppUser] {
-        post.taggedUserIDs.compactMap { taggedUsers[$0] }
+    private func fetchCommentCount() {
+        guard let postID = post.id else { return }
+        Firestore.firestore()
+            .collection("posts")
+            .document(postID)
+            .collection("comments")
+            .order(by: "timestamp", descending: false)
+            .limit(to: 5)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("Preview comments fetch error:", error)
+                    return
+                }
+                guard let docs = snapshot?.documents else { return }
+                commentCount = docs.count
+            }
     }
 
-    private func commentRow(_ comment: Comment) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            NavigationLink(destination: ProfileView(userID: comment.authorID)) {
-                Text(comment.authorName)
-                    .font(.caption)
-                    .foregroundColor(.blue)
-            }
-            .buttonStyle(.plain)
-
-            highlightMentions(in: comment.text)
-                .font(.caption)
-        }
-    }
-
-    private func highlightMentions(in text: String) -> Text {
-        let parts = text.split(separator: " ")
-        var composed = Text("")
-        for part in parts {
-            if part.hasPrefix("@") {
-                let mention = String(part)
-                composed = composed + Text(" \(mention)").foregroundColor(.blue)
-            } else {
-                composed = composed + Text(" \(part)")
+    private func fetchTaggedUsers() {
+        let ids = post.taggedUserIDs
+        guard !ids.isEmpty else { return }
+        UserService.shared.fetchUsers(withIDs: ids) { users in
+            DispatchQueue.main.async {
+                var map: [String: AppUser] = [:]
+                for user in users {
+                    if let id = user.id {
+                        map[id] = user
+                    }
+                }
+                taggedUsers = map
             }
         }
-        return composed
     }
 
     private func toggleLike() {
@@ -229,46 +238,6 @@ struct PostCard: View {
                     print("Failed to like post: \(error)")
                 }
                 isProcessingLike = false
-            }
-        }
-    }
-
-    private func fetchPreviewComments() {
-        guard let postID = post.id else { return }
-        Firestore.firestore()
-            .collection("posts")
-            .document(postID)
-            .collection("comments")
-            .order(by: "timestamp", descending: false)
-            .limit(to: 5)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("Preview comments fetch error:", error)
-                    return
-                }
-                guard let docs = snapshot?.documents else { return }
-                do {
-                    let allComments: [Comment] = try docs.map { try $0.data(as: Comment.self) }
-                    self.commentCount = allComments.count
-                    self.previewComments = Array(allComments.prefix(2))
-                } catch {
-                    print("Preview comments decode error:", error)
-                }
-            }
-    }
-
-    private func fetchTaggedUsers() {
-        let ids = post.taggedUserIDs
-        guard !ids.isEmpty else { return }
-        UserService.shared.fetchUsers(withIDs: ids) { users in
-            DispatchQueue.main.async {
-                var map: [String: AppUser] = [:]
-                for user in users {
-                    if let id = user.id {
-                        map[id] = user
-                    }
-                }
-                self.taggedUsers = map
             }
         }
     }

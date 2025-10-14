@@ -10,6 +10,9 @@ struct AIDraftWorkshopView: View {
     @Binding var selectedImages: [UIImage]
     @Binding var aiReferenceImages: [UIImage]
     @Binding var audioTranscript: String
+    @Binding var cookTime: String
+    @Binding var calorieEstimate: String
+    @Binding var aiNotes: [String]
 
     @State private var ideaPrompt: String = ""
     @State private var capturedIdeas: [String] = []
@@ -21,7 +24,6 @@ struct AIDraftWorkshopView: View {
     @State private var isDraftingWithAI: Bool = false
     @State private var lastGeneratedDate: Date?
     @State private var newIngredientDraft: String = ""
-    @State private var aiNotes: [String] = []
     @State private var referencePhotoItems: [PhotosPickerItem] = []
     @State private var showReferenceCamera: Bool = false
     @State private var capturedReferenceImage: UIImage?
@@ -322,6 +324,14 @@ struct AIDraftWorkshopView: View {
             ingredients = newIngredients
         }
 
+        if let newCookTime = draft.cookTime?.trimmingCharacters(in: .whitespacesAndNewlines), !newCookTime.isEmpty {
+            cookTime = newCookTime
+        }
+
+        if let calories = draft.calorieEstimate, calories > 0 {
+            calorieEstimate = "\(calories)"
+        }
+
         if let steps = draft.instructions, !steps.isEmpty {
             var combined = AttributedString()
             for (index, step) in steps.enumerated() {
@@ -536,6 +546,24 @@ struct AIDraftWorkshopView: View {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                     )
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Cook Time")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                TextField("e.g. 45 minutes", text: $cookTime)
+                    .textFieldStyle(.roundedBorder)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Calorie Estimate")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                TextField("Total calories", text: $calorieEstimate)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(.roundedBorder)
+                Text("Use the AI estimate to give people a sense of the meal's nutrition. Edit if you adjust ingredients.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
         }
     }

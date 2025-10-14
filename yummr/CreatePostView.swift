@@ -41,6 +41,7 @@ struct CreatePostView: View {
     @State private var description = ""
     @State private var recipe: AttributedString = AttributedString()
     @State private var cookTime = ""
+    @State private var calorieEstimate = ""
     @State private var ingredients: [String] = []
     @State private var ingredientDraft = ""
     @State private var selectedImages: [UIImage] = []
@@ -62,6 +63,7 @@ struct CreatePostView: View {
     @State private var tagSearchResults: [AppUser] = []
     @State private var pendingTags: [PendingTag] = []
     @State private var audioTranscript: String = ""
+    @State private var aiNotes: [String] = []
 
     var body: some View {
         NavigationView {
@@ -75,7 +77,10 @@ struct CreatePostView: View {
                             ingredients: $ingredients,
                             selectedImages: $selectedImages,
                             aiReferenceImages: $aiReferenceImages,
-                            audioTranscript: $audioTranscript
+                            audioTranscript: $audioTranscript,
+                            cookTime: $cookTime,
+                            calorieEstimate: $calorieEstimate,
+                            aiNotes: $aiNotes
                         )
                     } label: {
                         Label("AI Draft", systemImage: "wand.and.stars")
@@ -115,6 +120,10 @@ struct CreatePostView: View {
 
                         TextField("Cook time (e.g. 45 minutes)", text: $cookTime)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        TextField("Calories (estimated)", text: $calorieEstimate)
+                            .keyboardType(.numberPad)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
 
                     ingredientsSection
@@ -126,6 +135,25 @@ struct CreatePostView: View {
                     }
                     .disabled(isUploading || selectedImages.isEmpty || title.isEmpty)
                     .buttonStyle(.borderedProminent)
+
+                    if !aiNotes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("AI Notes")
+                                .appTextStyle(.headline, weight: .semibold)
+                            ForEach(aiNotes, id: \.self) { note in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "lightbulb.fill")
+                                        .foregroundColor(.accentColor)
+                                        .font(.footnote)
+                                    Text(note)
+                                        .appTextStyle(.body)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemBackground))
+                        .cornerRadius(12)
+                    }
 
                     if let error = errorMessage {
                         Text("Error: \(error)")
@@ -416,6 +444,15 @@ struct CreatePostView: View {
             extras["aiVoiceTranscript"] = trimmedTranscript
         }
 
+        let trimmedCalories = calorieEstimate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedCalories.isEmpty {
+            extras["calorieEstimate"] = trimmedCalories
+        }
+
+        if !aiNotes.isEmpty {
+            extras["aiNotes"] = aiNotes.joined(separator: "\n")
+        }
+
         let recipeText = recipe.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         PostService.shared.uploadPost(
@@ -449,6 +486,8 @@ struct CreatePostView: View {
                 selectedPhotos = []
                 audioTranscript = ""
                 aiReferenceImages = []
+                calorieEstimate = ""
+                aiNotes = []
             case .failure(let error):
                 errorMessage = error.localizedDescription
             }
