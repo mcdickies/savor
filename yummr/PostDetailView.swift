@@ -238,9 +238,11 @@ struct PostDetailView: View {
                     highlightMentions(in: comment.text)
                         .appTextStyle(.callout)
 
-                    Text(comment.timestamp.formatted(date: .abbreviated, time: .shortened))
-                        .appTextStyle(.caption2)
-                        .foregroundColor(.secondary)
+                    if let timestamp = comment.timestamp {
+                        Text(timestamp.formatted(date: .abbreviated, time: .shortened))
+                            .appTextStyle(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.vertical, 6)
                 Divider()
@@ -344,7 +346,9 @@ struct PostDetailView: View {
             newComment += " " + handle + " "
         }
         mentionSuggestions = []
-        mentionLookup[handle] = user.id
+        if let id = user.id {
+            mentionLookup[handle] = id
+        }
     }
 
     private func updateMentionSuggestions(_ text: String) {
@@ -377,8 +381,8 @@ struct PostDetailView: View {
         ]
 
         if let user = auth.currentUser {
-            payload["authorID"] = user.id
-            payload["authorName"] = user.displayName
+            payload["authorID"] = user.uid
+            payload["authorName"] = user.displayName ?? user.email ?? "Anonymous"
         }
 
         let mentions = mentionLookup
