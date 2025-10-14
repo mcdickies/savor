@@ -14,6 +14,8 @@ struct AIRecipeDraft: Codable {
     var instructions: [String]?
     let notes: [String]?
     var recipe: String?
+    let cookTime: String?
+    let calorieEstimate: Int?
     var recipeCreativeRanges: [CreativeRange] = []
     var instructionCreativeRanges: [[CreativeRange]] = []
 
@@ -25,6 +27,8 @@ struct AIRecipeDraft: Codable {
         case instructions
         case notes
         case recipe
+        case cookTime
+        case calorieEstimate
     }
 }
 
@@ -253,7 +257,7 @@ final class AIRecipeService {
                 )
             ],
             generationConfig: GeminiRequest.GenerationConfig(
-                temperature: 0.6,
+                temperature: 0.4,
                 topP: 0.95,
                 responseMimeType: "application/json"
             )
@@ -288,7 +292,9 @@ final class AIRecipeService {
 
         sections.append("You are an assistant that turns loose cooking notes into a publishable recipe for the Yummr app.")
         sections.append("Use the following inputs to craft a concise recipe draft.")
-        sections.append("Return only JSON with this structure (replace the placeholders with real values): {\"title\": \"...\", \"summary\": \"...\", \"ingredients\": [\"...\"], \"instructions\": [\"...\"], \"notes\": [\"...\"], \"recipe\": \"...\" }.")
+        sections.append("Return only JSON with this structure (replace the placeholders with real values): {\"title\": \"...\", \"summary\": \"...\", \"ingredients\": [\"...\"], \"instructions\": [\"...\"], \"notes\": [\"...\"], \"recipe\": \"...\", \"cookTime\": \"...\", \"calorieEstimate\": 123 }.")
+        sections.append("calorieEstimate must be a single integer representing the total calories for the recipe you generate based strictly on the ingredients and portions you provide. Do not add units or text.")
+        sections.append("Wrap only the invented or estimated portions of your output in <creative>...</creative> tags so the client can highlight them.")
         sections.append("Do not include markdown, explanations, or any text outside of that JSON object.")
 
         if publicImageCount > 0 {
@@ -328,7 +334,7 @@ final class AIRecipeService {
             sections.append("Author guidance: \(customPrompt)")
         }
 
-        sections.append("Keep instructions actionable and short. Respect any cook times or key flavors mentioned. If information is missing, make reasonable assumptions but keep them labeled as notes.")
+        sections.append("Keep instructions actionable and short. Respect any cook times or key flavors mentioned. If information is missing, make reasonable assumptions but mark those segments inside <creative>...</creative>.")
 
         return sections.joined(separator: "\n\n")
     }

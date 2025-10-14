@@ -7,7 +7,6 @@
 
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestore
 
 struct PostDetailView: View {
     let post: Post
@@ -27,69 +26,34 @@ struct PostDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
+                header
                 imageCarousel
-
-                if let cookTime = post.cookTime, !cookTime.isEmpty {
-                    Label(cookTime, systemImage: "clock")
-                        .font(.headline)
+                if let caption = captionText {
+                    Text(caption)
+                        .appTextStyle(.body)
+                        .foregroundColor(.primary)
                 }
-
-                Text(post.description)
-                    .font(.body)
-
-                if let recipe = post.recipe, !recipe.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Recipe")
-                            .font(.title3)
-                            .bold()
-                        Text(recipe)
-                            .font(.body)
-                            .multilineTextAlignment(.leading)
-                    }
+                metaRow
+                if !post.notesList.isEmpty {
+                    infoSection(title: "Notes", items: post.notesList)
                 }
-
-                if let ingredients = post.extraFields?["ingredients"], !ingredients.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Ingredients")
-                            .font(.headline)
-                        Text(ingredients)
-                            .font(.body)
-                    }
+                if !post.ingredientList.isEmpty {
+                    infoSection(title: "Ingredients", items: post.ingredientList)
                 }
-
-                if !post.taggedUserIDs.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Tagged")
-                            .font(.headline)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 12)]) {
-                            ForEach(sortedTaggedUsers, id: \.handle) { user in
-                                NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
-                                    VStack {
-                                        Text(user.displayName)
-                                            .font(.subheadline)
-                                        Text("@\(user.handle)")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(12)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                if !post.instructionsList.isEmpty {
+                    instructionsSection
+                } else if let recipeText = post.recipe, !recipeText.isEmpty {
+                    Text(recipeText)
+                        .appTextStyle(.body)
+                        .foregroundColor(.primary)
                 }
-
-                Divider()
-
                 commentSection
             }
             .padding()
         }
         .navigationTitle(post.title)
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             fetchComments()
             fetchTaggedUsers()
@@ -97,6 +61,50 @@ struct PostDetailView: View {
         .onChange(of: newComment, perform: updateMentionSuggestions)
         .sheet(isPresented: $showAllComments) {
             AllCommentsView(post: post)
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(post.title)
+                    .appTextStyle(.title2, weight: .bold)
+                    .foregroundColor(.primary)
+                Spacer()
+                if let rating = post.starRating {
+                    StarRatingView(rating: rating)
+                }
+                if post.isFavorited {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.yellow)
+                        .font(.caption)
+                }
+            }
+            Text("by \(post.authorName)")
+                .appTextStyle(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var captionText: String? {
+        let trimmed = post.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var metaRow: some View {
+        let cookTime = post.cookTime?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let calories = post.formattedCalories
+        return HStack(spacing: 16) {
+            if let cookTime, !cookTime.isEmpty {
+                Label(cookTime, systemImage: "clock")
+                    .appTextStyle(.subheadline, weight: .medium)
+                    .foregroundColor(.secondary)
+            }
+            if let calories {
+                Label(calories, systemImage: "flame")
+                    .appTextStyle(.subheadline, weight: .medium)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 
@@ -131,9 +139,35 @@ struct PostDetailView: View {
                 Button {
                     withAnimation { showTagsOverlay.toggle() }
                 } label: {
-                    Label(showTagsOverlay ? "Hide tags" : "Show tags", systemImage: showTagsOverlay ? "eye.slash" : "tag")
+                    Label(showTagsOverlay ? "Hide tags" : "Show tags", systemImage: showTagsOverlay ? "tag.fill" : "tag")
+                        .appTextStyle(.caption, weight: .medium)
+                        .foregroundColor(.accentColor)
                 }
-                .font(.caption)
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func infoSection(title: String, items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .appTextStyle(.headline, weight: .semibold)
+            ForEach(items, id: \.self) { item in
+                Text("• \(item)")
+                    .appTextStyle(.body)
+                    .foregroundColor(.primary)
+            }
+        }
+    }
+
+    private var instructionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Instructions")
+                .appTextStyle(.headline, weight: .semibold)
+            ForEach(Array(post.instructionsList.enumerated()), id: \.offset) { index, step in
+                Text("\(index + 1). \(step)")
+                    .appTextStyle(.body)
+                    .foregroundColor(.primary)
             }
         }
     }
@@ -159,7 +193,7 @@ struct PostDetailView: View {
         return Group {
             if let position = position {
                 Text(tagLabel(for: tag))
-                    .font(.caption2)
+                    .appTextStyle(.caption2, weight: .semibold)
                     .padding(6)
                     .background(Color.black.opacity(0.7))
                     .foregroundColor(.white)
@@ -182,171 +216,85 @@ struct PostDetailView: View {
         return "@\(tag.userID.prefix(6))"
     }
 
-    private var sortedTaggedUsers: [AppUser] {
-        post.taggedUserIDs.compactMap { taggedUsers[$0] }
-    }
-
     private var commentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Comments")
-                    .font(.headline)
+                    .appTextStyle(.headline, weight: .semibold)
                 Spacer()
                 Button("View thread") { showAllComments = true }
-                    .font(.caption)
+                    .appTextStyle(.caption, weight: .medium)
             }
 
             ForEach(comments) { comment in
                 VStack(alignment: .leading, spacing: 4) {
                     NavigationLink(destination: ProfileView(userID: comment.authorID)) {
                         Text(comment.authorName)
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                            .appTextStyle(.caption, weight: .semibold)
+                            .foregroundColor(.accentColor)
                     }
                     .buttonStyle(.plain)
+
                     highlightMentions(in: comment.text)
-                        .font(.body)
+                        .appTextStyle(.callout)
+
+                    Text(comment.timestamp.formatted(date: .abbreviated, time: .shortened))
+                        .appTextStyle(.caption2)
+                        .foregroundColor(.secondary)
                 }
-                .padding(8)
-                .background(Color(UIColor.systemGray6))
-                .cornerRadius(8)
+                .padding(.vertical, 6)
+                Divider()
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Add a comment...", text: $newComment, axis: .vertical)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            commentComposer
+        }
+    }
 
-                if !mentionSuggestions.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(mentionSuggestions, id: \.handle) { user in
-                                Button(action: { insertMention(user) }) {
-                                    Text("@\(user.handle)")
-                                        .padding(6)
-                                        .background(Color.blue.opacity(0.1))
-                                        .cornerRadius(8)
-                                }
-                                .buttonStyle(.plain)
+    private var commentComposer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Add a comment")
+                .appTextStyle(.subheadline, weight: .semibold)
+            TextField("Share your thoughts…", text: $newComment, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+            if !mentionSuggestions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(mentionSuggestions, id: \.id) { suggestion in
+                            Button {
+                                insertMention(suggestion)
+                            } label: {
+                                Text("@\(suggestion.handle)")
+                                    .appTextStyle(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.accentColor.opacity(0.1))
+                                    .cornerRadius(12)
                             }
                         }
                     }
                 }
-
-                Button("Send") {
-                    submitComment()
-                }
-                .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            Button("Post Comment", action: postComment)
+                .buttonStyle(.borderedProminent)
+                .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
     private func highlightMentions(in text: String) -> Text {
-        let components = text.split(separator: " ")
-        var aggregated = Text("")
-        for component in components {
-            if component.hasPrefix("@") {
-                aggregated = aggregated + Text(" \(component)").foregroundColor(.blue)
+        let parts = text.split(separator: " ")
+        var composed = Text("")
+        for (index, part) in parts.enumerated() {
+            if index > 0 {
+                composed = composed + Text(" ")
+            }
+            if part.hasPrefix("@") {
+                let mention = String(part)
+                composed = composed + Text(mention).foregroundColor(.accentColor)
             } else {
-                aggregated = aggregated + Text(" \(component)")
+                composed = composed + Text(String(part))
             }
         }
-        return aggregated
-    }
-
-    private func updateMentionSuggestions(for text: String) {
-        let words = text.split(separator: " ")
-        guard let last = words.last, last.hasPrefix("@"), last.count > 1 else {
-            mentionSuggestions = []
-            return
-        }
-        let query = last.dropFirst().lowercased()
-        UserService.shared.searchUsers(matching: String(query)) { users in
-            DispatchQueue.main.async {
-                mentionSuggestions = users
-                users.forEach { user in
-                    if let id = user.id {
-                        mentionLookup[user.handle] = id
-                    }
-                }
-            }
-        }
-    }
-
-    private func insertMention(_ user: AppUser) {
-        let handle = user.handle
-        var components = newComment.split(separator: " ", omittingEmptySubsequences: false)
-        if components.isEmpty {
-            newComment = "@\(handle) "
-        } else {
-            components.removeLast()
-            components.append(Substring("@\(handle)"))
-            newComment = components.joined(separator: " ") + " "
-        }
-        mentionSuggestions = []
-        if let id = user.id {
-            mentionLookup[handle] = id
-        }
-    }
-
-    private func submitComment() {
-        guard let postID = post.id,
-              let uid = auth.currentUser?.uid,
-              let name = auth.currentUser?.displayName ?? auth.currentUser?.email else { return }
-
-        resolveTaggedUserIDs(in: newComment) { taggedIDs in
-            let ref = Firestore.firestore()
-                .collection("posts")
-                .document(postID)
-                .collection("comments")
-                .document()
-
-            let comment = Comment(
-                id: ref.documentID,
-                text: newComment.trimmingCharacters(in: .whitespacesAndNewlines),
-                authorID: uid,
-                authorName: name,
-                parentCommentID: nil,
-                taggedUserIDs: taggedIDs,
-                timestamp: nil
-            )
-
-            do {
-                try ref.setData(from: comment)
-                newComment = ""
-                mentionSuggestions = []
-            } catch {
-                print("Failed to add comment: \(error)")
-            }
-        }
-    }
-
-    private func resolveTaggedUserIDs(in text: String, completion: @escaping ([String]) -> Void) {
-        let handles = Set(text.split(separator: " ").filter { $0.hasPrefix("@") }.map { String($0.dropFirst()) })
-        guard !handles.isEmpty else {
-            completion([])
-            return
-        }
-
-        var resolved: [String] = []
-        let group = DispatchGroup()
-
-        for handle in handles {
-            if let cached = mentionLookup[handle] {
-                resolved.append(cached)
-                continue
-            }
-            group.enter()
-            UserService.shared.fetchUser(withHandle: handle) { user in
-                if let id = user?.id {
-                    resolved.append(id)
-                }
-                group.leave()
-            }
-        }
-
-        group.notify(queue: .main) {
-            completion(Array(Set(resolved)))
-        }
+        return composed
     }
 
     private func fetchComments() {
@@ -356,9 +304,18 @@ struct PostDetailView: View {
             .document(postID)
             .collection("comments")
             .order(by: "timestamp", descending: false)
-            .addSnapshotListener { snapshot, _ in
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("Error fetching comments: \(error)")
+                    return
+                }
+
                 guard let docs = snapshot?.documents else { return }
-                self.comments = docs.compactMap { try? $0.data(as: Comment.self) }
+                do {
+                    comments = try docs.map { try $0.data(as: Comment.self) }
+                } catch {
+                    print("Failed to decode comments: \(error)")
+                }
             }
     }
 
@@ -373,8 +330,76 @@ struct PostDetailView: View {
                         map[id] = user
                     }
                 }
-                self.taggedUsers = map
+                taggedUsers = map
             }
         }
+    }
+
+    private func insertMention(_ user: AppUser) {
+        let handle = "@\(user.handle)"
+        let trimmed = newComment.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            newComment = handle + " "
+        } else {
+            newComment += " " + handle + " "
+        }
+        mentionSuggestions = []
+        mentionLookup[handle] = user.id
+    }
+
+    private func updateMentionSuggestions(_ text: String) {
+        guard let lastWord = text.split(separator: " ").last, lastWord.hasPrefix("@") else {
+            mentionSuggestions = []
+            return
+        }
+
+        let query = lastWord.replacingOccurrences(of: "@", with: "")
+        guard !query.isEmpty else {
+            mentionSuggestions = []
+            return
+        }
+
+        UserService.shared.searchUsers(matching: String(query)) { users in
+            DispatchQueue.main.async {
+                mentionSuggestions = users
+            }
+        }
+    }
+
+    private func postComment() {
+        guard let postID = post.id else { return }
+        let text = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+
+        var payload: [String: Any] = [
+            "text": text,
+            "timestamp": Timestamp(date: Date())
+        ]
+
+        if let user = auth.currentUser {
+            payload["authorID"] = user.id
+            payload["authorName"] = user.displayName
+        }
+
+        let mentions = mentionLookup
+        if !mentions.isEmpty {
+            payload["mentionedUsers"] = mentions
+        }
+
+        Firestore.firestore()
+            .collection("posts")
+            .document(postID)
+            .collection("comments")
+            .addDocument(data: payload) { error in
+                if let error = error {
+                    print("Error posting comment: \(error)")
+                    return
+                }
+
+                newComment = ""
+                mentionSuggestions = []
+                mentionLookup = [:]
+                fetchComments()
+            }
     }
 }
