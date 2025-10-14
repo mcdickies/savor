@@ -409,6 +409,20 @@ struct CreatePostView: View {
         pendingTags.removeAll { $0.id == tag.id }
     }
 
+    private func sanitizedInstructionSteps(from text: String) -> [String] {
+        let rawSteps = text.components(separatedBy: CharacterSet.newlines)
+        let cleaned = rawSteps.map { step -> String in
+            let trimmed = step.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return "" }
+            if let match = trimmed.range(of: "^\\d+(?:\\.\\d+)*[\\).\\-]*", options: .regularExpression) {
+                let remainder = trimmed.replacingCharacters(in: match, with: "")
+                return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return trimmed
+        }.filter { !$0.isEmpty }
+        return cleaned
+    }
+
     private func postContent() {
         guard !selectedImages.isEmpty else {
             errorMessage = "Please select at least one image."
@@ -437,7 +451,7 @@ struct CreatePostView: View {
 
         var extras: [String: String] = [:]
         if !ingredients.isEmpty {
-            extras["ingredients"] = ingredients.joined(separator: ", ")
+            extras["ingredients"] = ingredients.joined(separator: "\n")
         }
         let trimmedTranscript = audioTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedTranscript.isEmpty {
@@ -454,11 +468,13 @@ struct CreatePostView: View {
         }
 
         let recipeText = recipe.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sanitizedSteps = sanitizedInstructionSteps(from: recipeText)
+        let recipePayload = sanitizedSteps.isEmpty ? nil : sanitizedSteps.joined(separator: "\n")
 
         PostService.shared.uploadPost(
             title: title,
             description: description,
-            recipe: recipeText.isEmpty ? nil : recipeText,
+            recipe: recipePayload,
             cookTime: cookTime.isEmpty ? nil : cookTime,
             taggedUserIDs: uniqueTaggedIDs,
             photoTags: photoTags,

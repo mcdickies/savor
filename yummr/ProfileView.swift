@@ -29,6 +29,7 @@ struct ProfileView: View {
 
     @State private var selectedProfileImage: UIImage?
     @State private var selectedBannerImage: UIImage?
+    @State private var showSettings = false
 
     private let db = Firestore.firestore()
 
@@ -100,7 +101,10 @@ struct ProfileView: View {
             .navigationTitle(profileUser?.displayName ?? "Profile")
             .toolbar {
                 if isCurrentUser {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
+                        Button(action: { showSettings = true }) {
+                            Image(systemName: "gearshape")
+                        }
                         Button(action: { showImagePicker = true }) {
                             Image(systemName: "pencil")
                         }
@@ -120,6 +124,10 @@ struct ProfileView: View {
         .sheet(isPresented: $showBannerPicker) {
             ImagePicker(image: $selectedBannerImage)
                 .onDisappear { uploadBannerImage() }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(auth)
         }
     }
 
