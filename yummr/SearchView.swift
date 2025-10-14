@@ -7,6 +7,7 @@
 
 
 import SwiftUI
+import FirebaseFirestore
 
 struct SearchView: View {
     enum SortFilter: String, CaseIterable, Identifiable {
@@ -21,6 +22,14 @@ struct SearchView: View {
     @State private var recommendedPosts: [Post] = []
     @State private var userResults: [AppUser] = []
     @State private var postResults: [Post] = []
+    @State private var contactSuggestions: [AppUser] = []
+    @State private var userOnlyMode = false
+    @State private var friendIDs: Set<String> = []
+    @State private var pendingRequestIDs: Set<String> = []
+    @EnvironmentObject var auth: AuthService
+
+    @State private var friendListener: ListenerRegistration?
+    @State private var requestListener: ListenerRegistration?
 
     private let badges = ["Something new to try", "Something you might like", "Celebrity"]
 
@@ -42,6 +51,9 @@ struct SearchView: View {
 
                 if searchText.isEmpty {
                     ScrollView {
+                        if !contactSuggestions.isEmpty {
+                            suggestionSection
+                        }
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                             ForEach(recommendedPosts) { post in
                                 NavigationLink(destination: PostDetailView(post: post)) {
@@ -73,29 +85,33 @@ struct SearchView: View {
                         if !userResults.isEmpty {
                             Section("Users") {
                                 ForEach(userResults, id: \.handle) { user in
-                                    NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
-                                        HStack {
-                                            CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
-                                                Circle().fill(Color.gray.opacity(0.3))
-                                                    .frame(width: 44, height: 44)
-                                            }
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 44, height: 44)
-                                            .clipShape(Circle())
+                                    HStack {
+                                        NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
+                                            HStack {
+                                                CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                                                    Circle().fill(Color.gray.opacity(0.3))
+                                                        .frame(width: 44, height: 44)
+                                                }
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 44, height: 44)
+                                                .clipShape(Circle())
 
-                                            VStack(alignment: .leading) {
-                                                Text(user.displayName)
-                                                Text("@\(user.handle)")
-                                                    .font(.caption)
-                                                    .foregroundColor(.gray)
+                                                VStack(alignment: .leading) {
+                                                    Text(user.displayName)
+                                                    Text("@\(user.handle)")
+                                                        .font(.caption)
+                                                        .foregroundColor(.gray)
+                                                }
                                             }
                                         }
+                                        Spacer()
+                                        friendActionButton(for: user)
                                     }
                                 }
                             }
                         }
 
-                        if !postResults.isEmpty {
+                        if !userOnlyMode && !postResults.isEmpty {
                             Section("Recipes") {
                                 ForEach(postResults) { post in
                                     NavigationLink(destination: PostDetailView(post: post)) {
@@ -125,30 +141,84 @@ struct SearchView: View {
             .navigationTitle("Search")
         }
         .onAppear(perform: loadRecommendations)
+        .onAppear(perform: startFriendListeners)
+        .onDisappear(perform: stopFriendListeners)
         .onChange(of: searchText) { newValue in
             performSearch(query: newValue)
         }
         .onChange(of: selectedFilter) { _ in
             sortPostResults()
         }
+        .onChange(of: userOnlyMode) { _ in
+            performSearch(query: searchText)
+        }
     }
 
     private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-            TextField("Search users, recipes, and ingredients", text: $searchText)
-                .textFieldStyle(PlainTextFieldStyle())
+        GeometryReader { geometry in
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                    TextField(userOnlyMode ? "Search users" : "Search users, recipes, and ingredients", text: $searchText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                }
+                .padding(12)
+                .background(Color(UIColor.systemGray6))
+                .cornerRadius(12)
+                .frame(width: geometry.size.width * 0.8)
+
+                Button {
+                    userOnlyMode.toggle()
+                } label: {
+                    Image(systemName: userOnlyMode ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.plus")
+                        .font(.title3)
+                        .foregroundColor(userOnlyMode ? .accentColor : .secondary)
+                }
+                .accessibilityLabel("Toggle user search")
+            }
+            .padding(.horizontal)
         }
-        .padding(12)
-        .background(Color(UIColor.systemGray6))
-        .cornerRadius(12)
-        .padding(.horizontal)
+        .frame(height: 56)
     }
 
     private func badge(for post: Post) -> String {
         let identifier = post.id ?? post.title
         let index = abs(identifier.hashValue) % badges.count
         return badges[index]
+    }
+
+    private var suggestionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("People you may know")
+                .font(.headline)
+                .padding(.horizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(contactSuggestions, id: \.handle) { user in
+                        VStack(spacing: 8) {
+                            NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
+                                VStack {
+                                    CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                                        Circle().fill(Color.gray.opacity(0.3))
+                                            .frame(width: 64, height: 64)
+                                    }
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 64, height: 64)
+                                    .clipShape(Circle())
+
+                                    Text(user.displayName)
+                                        .font(.caption)
+                                }
+                            }
+                            friendActionButton(for: user)
+                                .font(.caption)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
     }
 
     private func loadRecommendations() {
@@ -175,10 +245,14 @@ struct SearchView: View {
             }
         }
 
-        PostService.shared.searchPosts(matching: trimmed) { posts in
-            DispatchQueue.main.async {
-                self.postResults = posts
-                self.sortPostResults()
+        if userOnlyMode {
+            postResults = []
+        } else {
+            PostService.shared.searchPosts(matching: trimmed) { posts in
+                DispatchQueue.main.async {
+                    self.postResults = posts
+                    self.sortPostResults()
+                }
             }
         }
     }
@@ -189,6 +263,58 @@ struct SearchView: View {
             postResults.sort { $0.likeCount > $1.likeCount }
         case .newest:
             postResults.sort { $0.timestamp > $1.timestamp }
+        }
+    }
+
+    private func startFriendListeners() {
+        guard let uid = auth.currentUser?.uid else { return }
+        friendListener?.remove()
+        requestListener?.remove()
+        friendListener = FriendService.shared.observeFriendIDs(for: uid) { ids in
+            DispatchQueue.main.async {
+                friendIDs = Set(ids)
+            }
+        }
+        requestListener = FriendService.shared.observeIncomingRequests(for: uid) { ids in
+            DispatchQueue.main.async {
+                pendingRequestIDs = Set(ids)
+            }
+        }
+        UserService.shared.fetchContactSuggestions(for: uid) { users in
+            DispatchQueue.main.async {
+                contactSuggestions = users
+            }
+        }
+    }
+
+    private func stopFriendListeners() {
+        friendListener?.remove()
+        requestListener?.remove()
+    }
+
+    private func friendActionButton(for user: AppUser) -> some View {
+        Group {
+            if user.id == auth.currentUser?.uid {
+                Text("You")
+                    .foregroundColor(.secondary)
+            } else if let id = user.id, friendIDs.contains(id) {
+                Label("Friends", systemImage: "checkmark.circle")
+                    .foregroundColor(.green)
+            } else if let id = user.id, pendingRequestIDs.contains(id) {
+                Label("Requested", systemImage: "hourglass")
+                    .foregroundColor(.orange)
+            } else if let id = user.id {
+                Button("Add Friend") {
+                    FriendService.shared.sendFriendRequest(to: id) { error in
+                        if error == nil {
+                            DispatchQueue.main.async {
+                                pendingRequestIDs.insert(id)
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
         }
     }
 }

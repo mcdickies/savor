@@ -25,6 +25,9 @@ struct RootView: View {
                     CreatePostView()
                         .tabItem { Label("Create",  systemImage: "plus.circle") }
 
+                    SavedCollectionsView()
+                        .tabItem { Label("Saved", systemImage: "bookmark") }
+
                     ProfileView()
                         .tabItem { Label("Profile", systemImage: "person.crop.circle") }
                 }

@@ -7,9 +7,11 @@
 
 import SwiftUI
 import FirebaseFirestore
+import FirebaseFirestoreSwift
 
 struct PostDetailView: View {
     let post: Post
+    @State private var livePost: Post
     @State private var comments: [Comment] = []
     @State private var newComment = ""
     @State private var mentionSuggestions: [AppUser] = []
@@ -18,10 +20,19 @@ struct PostDetailView: View {
     @State private var showTagsOverlay = false
     @State private var currentImageIndex = 0
     @State private var taggedUsers: [String: AppUser] = [:]
+    @State private var showEdit = false
+    @State private var postListener: ListenerRegistration?
+    @State private var commentsListener: ListenerRegistration?
+    @State private var isSaved = false
     @EnvironmentObject var auth: AuthService
 
+    init(post: Post) {
+        self.post = post
+        _livePost = State(initialValue: post)
+    }
+
     private var allImageURLs: [String] {
-        post.imageURLs + (post.detailImages ?? [])
+        livePost.imageURLs + (livePost.detailImages ?? [])
     }
 
     var body: some View {
@@ -35,15 +46,15 @@ struct PostDetailView: View {
                         .foregroundColor(.primary)
                 }
                 metaRow
-                if !post.notesList.isEmpty {
-                    infoSection(title: "Notes", items: post.notesList)
+                if !livePost.notesList.isEmpty {
+                    infoSection(title: "Notes", items: livePost.notesList)
                 }
-                if !post.ingredientList.isEmpty {
-                    infoSection(title: "Ingredients", items: post.ingredientList)
+                if !livePost.ingredientList.isEmpty {
+                    infoSection(title: "Ingredients", items: livePost.ingredientList)
                 }
-                if !post.instructionsList.isEmpty {
+                if !livePost.instructionsList.isEmpty {
                     instructionsSection
-                } else if let recipeText = post.recipe, !recipeText.isEmpty {
+                } else if let recipeText = livePost.recipe, !recipeText.isEmpty {
                     Text(recipeText)
                         .appTextStyle(.body)
                         .foregroundColor(.primary)
@@ -52,48 +63,73 @@ struct PostDetailView: View {
             }
             .padding()
         }
-        .navigationTitle(post.title)
+        .navigationTitle(livePost.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            fetchComments()
+            listenToPost()
+            listenToComments()
             fetchTaggedUsers()
+            checkSaveState()
         }
         .onChange(of: newComment, perform: updateMentionSuggestions)
+        .onChange(of: livePost.taggedUserIDs) { _ in
+            fetchTaggedUsers()
+        }
+        .onChange(of: livePost.id) { _ in
+            checkSaveState()
+        }
         .sheet(isPresented: $showAllComments) {
-            AllCommentsView(post: post)
+            AllCommentsView(post: livePost)
+        }
+        .sheet(isPresented: $showEdit) {
+            EditPostView(post: $livePost)
+        }
+        .onDisappear(perform: teardownListeners)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
+                    toggleSave()
+                } label: {
+                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                }
+
+                if auth.currentUser?.uid == livePost.authorID {
+                    Button("Edit") { showEdit = true }
+                }
+            }
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
-                Text(post.title)
+                Text(livePost.title)
                     .appTextStyle(.title2, weight: .bold)
                     .foregroundColor(.primary)
                 Spacer()
-                if let rating = post.starRating {
+                if let rating = livePost.starRating {
                     StarRatingView(rating: rating)
                 }
-                if post.isFavorited {
+                if livePost.isFavorited {
                     Image(systemName: "star.fill")
                         .foregroundColor(.yellow)
                         .font(.caption)
                 }
             }
-            Text("by \(post.authorName)")
+            Text("by \(HandleFormatter.normalizedHandle(from: livePost.authorName))")
                 .appTextStyle(.caption)
                 .foregroundColor(.secondary)
         }
     }
 
     private var captionText: String? {
-        let trimmed = post.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = livePost.description.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
     private var metaRow: some View {
-        let cookTime = post.cookTime?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let calories = post.formattedCalories
+        let cookTime = livePost.cookTime?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let calories = livePost.formattedCalories
         return HStack(spacing: 16) {
             if let cookTime, !cookTime.isEmpty {
                 Label(cookTime, systemImage: "clock")
@@ -135,7 +171,7 @@ struct PostDetailView: View {
             .frame(height: 320)
             .tabViewStyle(PageTabViewStyle())
 
-            if !post.photoTags.isEmpty {
+            if !livePost.photoTags.isEmpty {
                 Button {
                     withAnimation { showTagsOverlay.toggle() }
                 } label: {
@@ -164,7 +200,7 @@ struct PostDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Instructions")
                 .appTextStyle(.headline, weight: .semibold)
-            ForEach(Array(post.instructionsList.enumerated()), id: \.offset) { index, step in
+            ForEach(Array(livePost.instructionsList.enumerated()), id: \.offset) { index, step in
                 Text("\(index + 1). \(step)")
                     .appTextStyle(.body)
                     .foregroundColor(.primary)
@@ -173,15 +209,15 @@ struct PostDetailView: View {
     }
 
     private func mappedIndex(from displayedIndex: Int) -> Int {
-        if displayedIndex < post.imageURLs.count {
+        if displayedIndex < livePost.imageURLs.count {
             return displayedIndex
         } else {
-            return displayedIndex - post.imageURLs.count
+            return displayedIndex - livePost.imageURLs.count
         }
     }
 
     private func tags(for imageIndex: Int) -> [Post.PhotoTag] {
-        post.photoTags.filter { tag in
+        livePost.photoTags.filter { tag in
             guard let index = tag.imageIndex else { return false }
             return index == imageIndex
         }
@@ -229,7 +265,7 @@ struct PostDetailView: View {
             ForEach(comments) { comment in
                 VStack(alignment: .leading, spacing: 4) {
                     NavigationLink(destination: ProfileView(userID: comment.authorID)) {
-                        Text(comment.authorName)
+                        Text(HandleFormatter.normalizedHandle(from: comment.authorName))
                             .appTextStyle(.caption, weight: .semibold)
                             .foregroundColor(.accentColor)
                     }
@@ -265,7 +301,7 @@ struct PostDetailView: View {
                             Button {
                                 insertMention(suggestion)
                             } label: {
-                                Text("@\(suggestion.handle)")
+                                Text(HandleFormatter.normalizedHandle(from: suggestion.handle))
                                     .appTextStyle(.caption)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
@@ -299,30 +335,8 @@ struct PostDetailView: View {
         return composed
     }
 
-    private func fetchComments() {
-        guard let postID = post.id else { return }
-        Firestore.firestore()
-            .collection("posts")
-            .document(postID)
-            .collection("comments")
-            .order(by: "timestamp", descending: false)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("Error fetching comments: \(error)")
-                    return
-                }
-
-                guard let docs = snapshot?.documents else { return }
-                do {
-                    comments = try docs.map { try $0.data(as: Comment.self) }
-                } catch {
-                    print("Failed to decode comments: \(error)")
-                }
-            }
-    }
-
     private func fetchTaggedUsers() {
-        let ids = post.taggedUserIDs
+        let ids = livePost.taggedUserIDs
         guard !ids.isEmpty else { return }
         UserService.shared.fetchUsers(withIDs: ids) { users in
             DispatchQueue.main.async {
@@ -338,7 +352,8 @@ struct PostDetailView: View {
     }
 
     private func insertMention(_ user: AppUser) {
-        let handle = "@\(user.handle)"
+        let handle = HandleFormatter.normalizedHandle(from: user.handle)
+        guard handle.count > 1 else { return }
         let trimmed = newComment.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty {
             newComment = handle + " "
@@ -371,39 +386,101 @@ struct PostDetailView: View {
     }
 
     private func postComment() {
-        guard let postID = post.id else { return }
+        guard let postID = livePost.id ?? post.id,
+              let user = auth.currentUser else { return }
+
         let text = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        var payload: [String: Any] = [
-            "text": text,
-            "timestamp": Timestamp(date: Date())
-        ]
+        let fallbackName = user.displayName ?? user.email ?? "Anonymous"
 
-        if let user = auth.currentUser {
-            payload["authorID"] = user.uid
-            payload["authorName"] = user.displayName ?? user.email ?? "Anonymous"
+        UserService.shared.fetchUser(withID: user.uid) { appUser in
+            let authorHandle = HandleFormatter.normalizedHandle(from: appUser?.handle)
+                ?? HandleFormatter.normalizedHandle(from: fallbackName)
+
+            DispatchQueue.main.async {
+                var payload: [String: Any] = [
+                    "text": text,
+                    "timestamp": Timestamp(date: Date()),
+                    "authorID": user.uid,
+                    "authorName": authorHandle
+                ]
+
+                let mentions = mentionLookup
+                if !mentions.isEmpty {
+                    payload["mentionedUsers"] = mentions
+                }
+
+                Firestore.firestore()
+                    .collection("posts")
+                    .document(postID)
+                    .collection("comments")
+                    .addDocument(data: payload) { error in
+                        if let error = error {
+                            print("Error posting comment: \(error)")
+                            return
+                        }
+
+                        newComment = ""
+                        mentionSuggestions = []
+                        mentionLookup = [:]
+                    }
+            }
         }
+    }
 
-        let mentions = mentionLookup
-        if !mentions.isEmpty {
-            payload["mentionedUsers"] = mentions
+    private func toggleSave() {
+        SavedService.shared.toggleSave(post: livePost) { result in
+            DispatchQueue.main.async {
+                if case .success(let saved) = result {
+                    self.isSaved = saved
+                }
+            }
         }
+    }
 
-        Firestore.firestore()
+    private func checkSaveState() {
+        guard let postID = livePost.id ?? post.id else { return }
+        SavedService.shared.isPostSaved(postID: postID) { saved in
+            DispatchQueue.main.async {
+                self.isSaved = saved
+            }
+        }
+    }
+
+    private func listenToPost() {
+        guard let postID = post.id else { return }
+        postListener = Firestore.firestore()
+            .collection("posts")
+            .document(postID)
+            .addSnapshotListener { snapshot, _ in
+                guard let snapshot = snapshot else { return }
+                if let updated = try? snapshot.data(as: Post.self) {
+                    DispatchQueue.main.async {
+                        self.livePost = updated
+                    }
+                }
+            }
+    }
+
+    private func listenToComments() {
+        guard let postID = post.id else { return }
+        commentsListener = Firestore.firestore()
             .collection("posts")
             .document(postID)
             .collection("comments")
-            .addDocument(data: payload) { error in
-                if let error = error {
-                    print("Error posting comment: \(error)")
-                    return
+            .order(by: "timestamp", descending: false)
+            .addSnapshotListener { snapshot, _ in
+                guard let docs = snapshot?.documents else { return }
+                let resolved = docs.compactMap { try? $0.data(as: Comment.self) }
+                DispatchQueue.main.async {
+                    self.comments = resolved
                 }
-
-                newComment = ""
-                mentionSuggestions = []
-                mentionLookup = [:]
-                fetchComments()
             }
+    }
+
+    private func teardownListeners() {
+        postListener?.remove()
+        commentsListener?.remove()
     }
 }

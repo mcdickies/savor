@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseFirestoreSwift
 
 struct PostCard: View {
     var post: Post
@@ -12,6 +13,8 @@ struct PostCard: View {
     @State private var showTagsOverlay = false
     @State private var currentImageIndex = 0
     @State private var taggedUsers: [String: AppUser] = [:]
+    @State private var previewComments: [Comment] = []
+    @State private var isSaved = false
 
     init(post: Post) {
         self.post = post
@@ -45,16 +48,39 @@ struct PostCard: View {
             }
 
             interactionBar
+
+            if !previewComments.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(previewComments.sorted { ($0.timestamp ?? .distantPast) < ($1.timestamp ?? .distantPast) }) { comment in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(HandleFormatter.normalizedHandle(from: comment.authorName))
+                                .appTextStyle(.caption, weight: .semibold)
+                                .foregroundColor(.secondary)
+                            Text(comment.text)
+                                .appTextStyle(.subheadline)
+                                .foregroundColor(.primary)
+                                .lineLimit(2)
+                        }
+                    }
+
+                    Button("View more comments") {
+                        showAllComments = true
+                    }
+                    .appTextStyle(.caption, weight: .semibold)
+                    .buttonStyle(.plain)
+                }
+            }
         }
         .padding()
         .background(Color(UIColor.systemGray6))
         .cornerRadius(16)
         .onAppear {
-            fetchCommentCount()
+            fetchCommentsPreview()
             fetchTaggedUsers()
+            checkSaveState()
         }
         .sheet(isPresented: $showAllComments, onDismiss: {
-            fetchCommentCount()
+            fetchCommentsPreview()
         }) {
             AllCommentsView(post: post)
         }
@@ -82,7 +108,7 @@ struct PostCard: View {
                 }
             }
 
-            Text("by \(post.authorName)")
+            Text("by \(HandleFormatter.normalizedHandle(from: post.authorName))")
                 .appTextStyle(.caption)
                 .foregroundColor(.secondary)
         }
@@ -103,6 +129,12 @@ struct PostCard: View {
 
             Spacer()
 
+            Button(action: toggleSave) {
+                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                    .foregroundColor(isSaved ? .accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+
             Button {
                 showAllComments = true
             } label: {
@@ -117,6 +149,25 @@ struct PostCard: View {
             .buttonStyle(.plain)
         }
         .padding(.top, 4)
+    }
+
+    private func toggleSave() {
+        SavedService.shared.toggleSave(post: post) { result in
+            DispatchQueue.main.async {
+                if case .success(let saved) = result {
+                    self.isSaved = saved
+                }
+            }
+        }
+    }
+
+    private func checkSaveState() {
+        guard let postID = post.id else { return }
+        SavedService.shared.isPostSaved(postID: postID) { saved in
+            DispatchQueue.main.async {
+                self.isSaved = saved
+            }
+        }
     }
 
     private var captionText: String? {
@@ -190,21 +241,33 @@ struct PostCard: View {
         return "@\(tag.userID.prefix(6))"
     }
 
-    private func fetchCommentCount() {
+    private func fetchCommentsPreview() {
         guard let postID = post.id else { return }
-        Firestore.firestore()
+        let commentsRef = Firestore.firestore()
             .collection("posts")
             .document(postID)
             .collection("comments")
-            .order(by: "timestamp", descending: false)
-            .limit(to: 5)
+
+        commentsRef.getDocuments { snapshot, error in
+            if let error = error {
+                print("Preview comments fetch error:", error)
+                return
+            }
+            guard let docs = snapshot?.documents else { return }
+            commentCount = docs.count
+        }
+
+        commentsRef
+            .order(by: "timestamp", descending: true)
+            .limit(to: 2)
             .getDocuments { snapshot, error in
                 if let error = error {
                     print("Preview comments fetch error:", error)
                     return
                 }
                 guard let docs = snapshot?.documents else { return }
-                commentCount = docs.count
+                let comments = docs.compactMap { try? $0.data(as: Comment.self) }
+                previewComments = comments
             }
     }
 
@@ -242,3 +305,4 @@ struct PostCard: View {
         }
     }
 }
+

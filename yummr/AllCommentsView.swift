@@ -1,13 +1,7 @@
-//
-//  AllCommentsView.swift
-//  yummr
-//
-//  Created by kuba woahz on 6/30/25.
-//
-
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestore
+import FirebaseAuth
+import UIKit
 
 struct CommentThread: Identifiable {
     let comment: Comment
@@ -26,134 +20,219 @@ struct AllCommentsView: View {
     @State private var replyingTo: Comment?
     @State private var mentionSuggestions: [AppUser] = []
     @State private var mentionLookup: [String: String] = [:]
+    @State private var dragOffset: CGFloat = 0
+
+    @State private var rootListener: ListenerRegistration?
+    @State private var replyListeners: [String: ListenerRegistration] = [:]
+    @State private var repliesCache: [String: [Comment]] = [:]
+
+    private let db = Firestore.firestore()
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 12) {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(threads) { thread in
-                            commentBlock(thread.comment, isReply: false)
-                            ForEach(thread.replies) { reply in
-                                commentBlock(reply, isReply: true)
-                            }
-                        }
-                    }
-                    .padding(.top, 4)
-                }
+        ZStack {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+                .onTapGesture { dismiss() }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    if let replyingTo = replyingTo {
-                        HStack {
-                            Text("Replying to \(replyingTo.authorName)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Button("Cancel") {
-                                self.replyingTo = nil
-                            }
-                            .font(.caption)
-                        }
-                    }
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.6))
+                    .frame(width: 40, height: 5)
+                    .padding(.top, 12)
 
-                    TextField("Add a comment...", text: $newComment, axis: .vertical)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                header
+                    .padding(.top, 8)
 
-                    if !mentionSuggestions.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(mentionSuggestions, id: \.handle) { user in
-                                    Button(action: { insertMention(user) }) {
-                                        Text("@\(user.handle)")
-                                            .padding(6)
-                                            .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(8)
+                Divider()
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(threads) { thread in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    commentBlock(thread.comment, isReply: false)
+                                    ForEach(thread.replies) { reply in
+                                        commentBlock(reply, isReply: true)
                                     }
-                                    .buttonStyle(.plain)
                                 }
+                                .id(thread.id)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 80)
+                    }
+                    .onChange(of: threads.count) { _ in
+                        if replyingTo == nil {
+                            if let lastID = threads.last?.id {
+                                withAnimation { proxy.scrollTo(lastID, anchor: .bottom) }
                             }
                         }
                     }
+                }
 
-                    Button("Send") {
-                        submitComment()
+                composer
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
+            }
+            .background(.ultraThinMaterial)
+            .cornerRadius(24, corners: [.topLeft, .topRight])
+            .offset(y: dragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        dragOffset = max(0, value.translation.height)
                     }
-                    .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(.vertical)
-            }
-            .padding(.horizontal)
-            .navigationTitle("Comments")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .onAppear { fetchComments() }
+                    .onEnded { value in
+                        if value.translation.height > 100 {
+                            dismiss()
+                        }
+                        dragOffset = 0
+                    }
+            )
+            .frame(maxHeight: UIScreen.main.bounds.height * 0.85)
         }
+        .onAppear(perform: startListening)
+        .onDisappear(perform: teardownListeners)
         .onChange(of: newComment, perform: updateMentionSuggestions)
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Comments")
+                .font(.headline)
+            Spacer()
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.headline)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 
     private func commentBlock(_ comment: Comment, isReply: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(alignment: .top) {
                 NavigationLink(destination: ProfileView(userID: comment.authorID)) {
-                    Text(comment.authorName)
-                        .font(.caption)
-                        .foregroundColor(.blue)
+                    Text(HandleFormatter.normalizedHandle(from: comment.authorName))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
                 }
                 .buttonStyle(.plain)
+
                 Spacer()
-                Button("Reply") {
-                    replyingTo = comment
-                    if !newComment.hasSuffix(" ") { newComment.append(" ") }
+
+                if canDelete(comment: comment) {
+                    Menu {
+                        Button(role: .destructive) {
+                            delete(comment: comment)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .font(.caption)
             }
 
             highlightMentions(in: comment.text)
                 .font(.body)
 
-            if let timestamp = comment.timestamp {
-                Text(timestamp, style: .time)
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+            HStack(spacing: 12) {
+                if let timestamp = comment.timestamp {
+                    Text(timestamp.formatted(date: .omitted, time: .shortened))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Button("Reply") {
+                    replyingTo = comment
+                }
+                .font(.caption)
+                .buttonStyle(.plain)
             }
         }
-        .padding(8)
-        .background(Color(UIColor.systemGray6))
-        .cornerRadius(8)
-        .padding(.leading, isReply ? 24 : 0)
+        .padding(12)
+        .background(Color(UIColor.systemBackground).opacity(0.8))
+        .cornerRadius(12)
+        .padding(.leading, isReply ? 32 : 0)
+    }
+
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let replyingTo {
+                HStack {
+                    Text("Replying to \(HandleFormatter.normalizedHandle(from: replyingTo.authorName))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Cancel") { self.replyingTo = nil }
+                        .font(.caption)
+                }
+            }
+
+            TextField("Add a comment…", text: $newComment, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+
+            if !mentionSuggestions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(mentionSuggestions, id: \.id) { user in
+                            Button {
+                                insertMention(user)
+                            } label: {
+                                Text(HandleFormatter.normalizedHandle(from: user.handle))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.accentColor.opacity(0.1))
+                                    .cornerRadius(10)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button("Send", action: submitComment)
+                .buttonStyle(.borderedProminent)
+                .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
     }
 
     private func highlightMentions(in text: String) -> Text {
         let components = text.split(separator: " ")
         var aggregated = Text("")
-        for component in components {
+        for (index, component) in components.enumerated() {
+            if index > 0 {
+                aggregated = aggregated + Text(" ")
+            }
             if component.hasPrefix("@") {
-                aggregated = aggregated + Text(" \(component)").foregroundColor(.blue)
+                aggregated = aggregated + Text(String(component)).foregroundColor(.accentColor)
             } else {
-                aggregated = aggregated + Text(" \(component)")
+                aggregated = aggregated + Text(String(component))
             }
         }
         return aggregated
     }
 
     private func insertMention(_ user: AppUser) {
-        let handle = user.handle
-        var components = newComment.split(separator: " ", omittingEmptySubsequences: false)
-        if components.isEmpty {
-            newComment = "@\(handle) "
+        let normalizedHandle = HandleFormatter.normalizedHandle(from: user.handle)
+        guard normalizedHandle.count > 1 else { return }
+        if let id = user.id {
+            mentionLookup[String(normalizedHandle.dropFirst())] = id
+        }
+
+        var tokens = newComment.split(separator: " ", omittingEmptySubsequences: false)
+        if tokens.isEmpty {
+            newComment = normalizedHandle + " "
         } else {
-            components.removeLast()
-            components.append(Substring("@\(handle)"))
-            newComment = components.joined(separator: " ") + " "
+            tokens.removeLast()
+            tokens.append(Substring(normalizedHandle))
+            newComment = tokens.joined(separator: " ") + " "
         }
         mentionSuggestions = []
-        if let id = user.id {
-            mentionLookup[handle] = id
-        }
     }
 
     private func updateMentionSuggestions(for text: String) {
@@ -163,7 +242,7 @@ struct AllCommentsView: View {
             return
         }
         let query = last.dropFirst().lowercased()
-        UserService.shared.searchUsers(matching: String(query)) { users in
+        UserService.shared.searchUsers(matching: String(query), limit: 5, includeBio: false) { users in
             DispatchQueue.main.async {
                 mentionSuggestions = users
                 users.forEach { user in
@@ -176,58 +255,57 @@ struct AllCommentsView: View {
     }
 
     private func submitComment() {
-        guard let uid = auth.currentUser?.uid,
-              let postID = post.id,
-              let name = auth.currentUser?.displayName ?? auth.currentUser?.email else { return }
+        guard let uid = auth.currentUser?.uid, let postID = post.id else { return }
+        let trimmedComment = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedComment.isEmpty else { return }
 
-        resolveTaggedUserIDs(in: newComment) { taggedIDs in
-            let ref: DocumentReference
-            var parentID: String? = nil
+        let fallbackName = auth.currentUser?.displayName ?? auth.currentUser?.email ?? "Anonymous"
+        UserService.shared.fetchUser(withID: uid) { appUser in
+            let authorHandle = HandleFormatter.normalizedHandle(from: appUser?.handle) ?? HandleFormatter.normalizedHandle(from: fallbackName)
 
-            if let replyingTo = replyingTo, let parentCommentID = replyingTo.id {
-                parentID = parentCommentID
-                ref = Firestore.firestore()
-                    .collection("posts").document(postID)
-                    .collection("comments").document(parentCommentID)
-                    .collection("replies").document()
-            } else {
-                ref = Firestore.firestore()
-                    .collection("posts").document(postID)
-                    .collection("comments").document()
-            }
+            resolveTaggedUserIDs(in: trimmedComment) { taggedIDs in
+                var ref: DocumentReference
+                var parentID: String?
 
-            let comment = Comment(
-                id: ref.documentID,
-                text: newComment.trimmingCharacters(in: .whitespacesAndNewlines),
-                authorID: uid,
-                authorName: name,
-                parentCommentID: parentID,
-                taggedUserIDs: taggedIDs,
-                timestamp: nil
-            )
-
-            do {
-                try ref.setData(from: comment)
-                if parentID == nil {
-                    // also add to main comments collection if newly created doc
-                } else if let parentID = parentID {
-                    // Optionally also write reply reference to parent comment doc for easier queries
-                    let parentRef = Firestore.firestore()
-                        .collection("posts").document(postID)
-                        .collection("comments").document(parentID)
-                    parentRef.updateData(["lastRepliedAt": FieldValue.serverTimestamp()])
+                if let replyingTo = replyingTo, let parentCommentID = replyingTo.id {
+                    parentID = parentCommentID
+                    ref = db.collection("posts").document(postID)
+                        .collection("comments").document(parentCommentID)
+                        .collection("replies").document()
+                } else {
+                    ref = db.collection("posts").document(postID)
+                        .collection("comments").document()
                 }
-                newComment = ""
-                replyingTo = nil
-                mentionSuggestions = []
-            } catch {
-                print("Error posting comment: \(error)")
+
+                let comment = Comment(
+                    id: ref.documentID,
+                    text: trimmedComment,
+                    authorID: uid,
+                    authorName: authorHandle,
+                    parentCommentID: parentID,
+                    taggedUserIDs: taggedIDs,
+                    timestamp: Date()
+                )
+
+                do {
+                    try ref.setData(from: comment)
+                    DispatchQueue.main.async {
+                        newComment = ""
+                        replyingTo = nil
+                        mentionSuggestions = []
+                    }
+                } catch {
+                    print("Error posting comment: \(error)")
+                }
             }
         }
     }
 
     private func resolveTaggedUserIDs(in text: String, completion: @escaping ([String]) -> Void) {
-        let handles = Set(text.split(separator: " ").filter { $0.hasPrefix("@") }.map { String($0.dropFirst()) })
+        let handles = Set(text.split(separator: " ")
+            .filter { $0.hasPrefix("@") }
+            .map { String($0.dropFirst()) })
+
         guard !handles.isEmpty else {
             completion([])
             return
@@ -241,6 +319,7 @@ struct AllCommentsView: View {
                 resolved.append(cached)
                 continue
             }
+
             group.enter()
             UserService.shared.fetchUser(withHandle: handle) { user in
                 if let id = user?.id {
@@ -255,45 +334,96 @@ struct AllCommentsView: View {
         }
     }
 
-    private func fetchComments() {
+    private func startListening() {
         guard let postID = post.id else { return }
-        Firestore.firestore()
-            .collection("posts").document(postID)
+        rootListener = db.collection("posts")
+            .document(postID)
             .collection("comments")
             .order(by: "timestamp", descending: false)
             .addSnapshotListener { snapshot, _ in
                 guard let docs = snapshot?.documents else { return }
                 var updatedThreads: [CommentThread] = []
+                var newListeners: [String: ListenerRegistration] = [:]
+
                 let rootComments = docs.compactMap { try? $0.data(as: Comment.self) }
                     .filter { $0.parentCommentID == nil }
 
-                let group = DispatchGroup()
-                for var root in rootComments {
+                for root in rootComments {
                     var thread = CommentThread(comment: root, replies: [])
                     if let commentID = root.id {
-                        group.enter()
-                        Firestore.firestore()
-                            .collection("posts").document(postID)
-                            .collection("comments").document(commentID)
-                            .collection("replies")
-                            .order(by: "timestamp", descending: false)
-                            .getDocuments { snapshot, _ in
-                                if let replyDocs = snapshot?.documents {
-                                    thread.replies = replyDocs.compactMap { try? $0.data(as: Comment.self) }
+                        thread.replies = repliesCache[commentID] ?? []
+                        if replyListeners[commentID] == nil {
+                            let listener = db.collection("posts")
+                                .document(postID)
+                                .collection("comments")
+                                .document(commentID)
+                                .collection("replies")
+                                .order(by: "timestamp", descending: false)
+                                .addSnapshotListener { snapshot, _ in
+                                    guard let replyDocs = snapshot?.documents else { return }
+                                    let replies = replyDocs.compactMap { try? $0.data(as: Comment.self) }
+                                    DispatchQueue.main.async {
+                                        repliesCache[commentID] = replies
+                                        threads = threads.map { existing in
+                                            guard existing.comment.id == commentID else { return existing }
+                                            return CommentThread(comment: existing.comment, replies: replies)
+                                        }
+                                    }
                                 }
-                                updatedThreads.append(thread)
-                                group.leave()
-                            }
-                    } else {
-                        updatedThreads.append(thread)
+                            newListeners[commentID] = listener
+                        }
                     }
+                    updatedThreads.append(thread)
                 }
 
-                group.notify(queue: .main) {
-                    self.threads = updatedThreads.sorted { (lhs, rhs) in
-                        (lhs.comment.timestamp ?? Date.distantPast) < (rhs.comment.timestamp ?? Date.distantPast)
+                replyListeners.merge(newListeners) { current, _ in
+                    current
+                }
+
+                let activeIDs = Set(rootComments.compactMap { $0.id })
+                replyListeners.keys
+                    .filter { !activeIDs.contains($0) }
+                    .forEach { key in
+                        replyListeners[key]?.remove()
+                        replyListeners.removeValue(forKey: key)
+                        repliesCache.removeValue(forKey: key)
+                    }
+
+                DispatchQueue.main.async {
+                    threads = updatedThreads.sorted { lhs, rhs in
+                        (lhs.comment.timestamp ?? .distantPast) < (rhs.comment.timestamp ?? .distantPast)
                     }
                 }
             }
+    }
+
+    private func teardownListeners() {
+        rootListener?.remove()
+        replyListeners.values.forEach { $0.remove() }
+        replyListeners.removeAll()
+    }
+
+    private func canDelete(comment: Comment) -> Bool {
+        guard let currentUserID = auth.currentUser?.uid else { return false }
+        if comment.authorID == currentUserID { return true }
+        return post.authorID == currentUserID
+    }
+
+    private func delete(comment: Comment) {
+        guard let postID = post.id, let commentID = comment.id else { return }
+        let postRef = db.collection("posts").document(postID)
+        if comment.parentCommentID == nil {
+            let commentRef = postRef.collection("comments").document(commentID)
+            commentRef.collection("replies").getDocuments { snapshot, _ in
+                snapshot?.documents.forEach { $0.reference.delete() }
+                commentRef.delete()
+            }
+        } else if let parentID = comment.parentCommentID {
+            postRef.collection("comments")
+                .document(parentID)
+                .collection("replies")
+                .document(commentID)
+                .delete()
+        }
     }
 }
