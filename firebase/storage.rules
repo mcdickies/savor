@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /images/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /profileImages/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == fileName.split('.')[0];
+    }
+
+    match /bannerImages/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == fileName.split('.')[0];
+    }
+
+    match /{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}
