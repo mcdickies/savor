@@ -83,7 +83,8 @@ class PostService: ObservableObject {
             return
         }
 
-        resolveAuthorName(for: uid) { authorName in
+        resolveAuthorName(for: uid) { [weak self] authorName in
+            guard let self = self else { return }
             var urls: [String] = Array(repeating: "", count: images.count)
             var detailURLs: [String] = Array(repeating: "", count: detailImages.count)
             var uploadError: Error?
@@ -100,7 +101,7 @@ class PostService: ObservableObject {
                 }
 
                 let imageID = UUID().uuidString
-                let imageRef = storage.reference().child("images/\(imageID).jpg")
+                let imageRef = self.storage.reference().child("images/\(imageID).jpg")
                 let uploadTask = imageRef.putData(imageData, metadata: nil)
 
                 uploadTask.observe(.progress) { snapshot in
@@ -139,7 +140,7 @@ class PostService: ObservableObject {
                 }
 
                 let imageID = UUID().uuidString
-                let imageRef = storage.reference().child("images/detail/\(imageID).jpg")
+                let imageRef = self.storage.reference().child("images/detail/\(imageID).jpg")
                 imageRef.putData(imageData, metadata: nil) { _, error in
                     if let error = error {
                         uploadError = error
@@ -164,7 +165,8 @@ class PostService: ObservableObject {
                 }
 
                 let uniqueTagged = Array(Set(taggedUserIDs))
-                let sanitizedExtras = extraFields.isEmpty ? nil : extraFields
+                let cleanedExtras = self.sanitizeExtraFields(extraFields)
+                let sanitizedExtras = cleanedExtras.isEmpty ? nil : cleanedExtras
                 let sanitizedDetailURLs = detailURLs.isEmpty ? nil : detailURLs
 
                 let post = Post(
@@ -236,25 +238,19 @@ class PostService: ObservableObject {
                     recipeSteps: [String],
                     extraFields: [String: String],
                     completion: @escaping (Result<Void, Error>) -> Void) {
-        var sanitizedExtras = extraFields
-        let sanitizedIngredients = sanitizeIngredients(extraFields["ingredients"])
-        if !sanitizedIngredients.isEmpty {
-            sanitizedExtras["ingredients"] = sanitizedIngredients.joined(separator: ", ")
-        }
-
+        let sanitizedExtras = sanitizeExtraFields(extraFields)
         let sanitizedRecipe = sanitizeInstructions(recipeSteps)
         let recipeString = sanitizedRecipe.joined(separator: "\n")
 
         var payload: [String: Any] = [
             "description": description,
-            "recipe": recipeString
+            "recipe": recipeString,
+            "extraFields": sanitizedExtras
         ]
 
         if let title = title {
             payload["title"] = title
         }
-
-        payload["extraFields"] = sanitizedExtras
 
         db.collection("posts").document(postID).updateData(payload) { error in
             if let error = error {
@@ -301,6 +297,109 @@ class PostService: ObservableObject {
 }
 
 private extension PostService {
+    func sanitizeExtraFields(_ extras: [String: String]) -> [String: String] {
+        guard !extras.isEmpty else { return [:] }
+
+        var normalized: [String: String] = [:]
+        for (key, value) in extras {
+            normalized[key] = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var sanitized: [String: String] = [:]
+        let reservedKeys: Set<String> = [
+            "ingredients",
+            "aiNotes",
+            "aiVoiceTranscript",
+            "calorieEstimate",
+            "starRating",
+            "rating",
+            "stars",
+            "isFavorite",
+            "favorite"
+        ]
+
+        if let ingredientsValue = extras["ingredients"] ?? normalized["ingredients"] {
+            let items = sanitizeIngredients(ingredientsValue)
+            if !items.isEmpty {
+                sanitized["ingredients"] = items.joined(separator: "\n")
+            }
+        }
+
+        if let notes = normalized["aiNotes"], !notes.isEmpty {
+            sanitized["aiNotes"] = notes
+        }
+
+        if let transcript = normalized["aiVoiceTranscript"], !transcript.isEmpty {
+            sanitized["aiVoiceTranscript"] = transcript
+        }
+
+        if let calories = sanitizeCalories(extras["calorieEstimate"] ?? normalized["calorieEstimate"]) {
+            sanitized["calorieEstimate"] = calories
+        }
+
+        if let ratingValue = sanitizedRating(from: extras["starRating"] ?? extras["rating"] ?? extras["stars"]) {
+            sanitized["starRating"] = ratingValue
+        }
+
+        if let isFavorite = sanitizedFavorite(from: extras["isFavorite"] ?? extras["favorite"]), isFavorite {
+            sanitized["isFavorite"] = "true"
+        }
+
+        for (key, value) in normalized where !value.isEmpty {
+            if sanitized.keys.contains(key) { continue }
+            if reservedKeys.contains(key) { continue }
+            sanitized[key] = value
+        }
+
+        return sanitized
+    }
+
+    func sanitizeCalories(_ rawValue: String?) -> String? {
+        guard let rawValue = rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let components = trimmed.components(separatedBy: CharacterSet.decimalDigits.inverted).filter { !$0.isEmpty }
+        guard let first = components.first else { return nil }
+        return first
+    }
+
+    func sanitizedRating(from rawValue: String?) -> String? {
+        guard let rawValue = rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalized = trimmed.replacingOccurrences(of: ",", with: ".")
+        if let value = Double(normalized) {
+            let clamped = max(0, min(value, 5))
+            return clamped > 0 ? String(format: "%.1f", clamped) : nil
+        }
+
+        let digits = normalized.compactMap { character -> Character? in
+            if character.isNumber || character == "." { return character }
+            return nil
+        }
+
+        guard let value = Double(String(digits)) else { return nil }
+        let clamped = max(0, min(value, 5))
+        return clamped > 0 ? String(format: "%.1f", clamped) : nil
+    }
+
+    func sanitizedFavorite(from rawValue: String?) -> Bool? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty else { return nil }
+
+        let normalized = rawValue.lowercased()
+        if ["true", "1", "yes", "y", "favorite", "fav"].contains(normalized) {
+            return true
+        }
+
+        if ["false", "0", "no", "n"].contains(normalized) {
+            return false
+        }
+
+        return nil
+    }
+
     func sanitizeIngredients(_ rawValue: String?) -> [String] {
         guard let rawValue = rawValue else { return [] }
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)

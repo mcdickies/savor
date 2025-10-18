@@ -115,7 +115,6 @@ final class AIRecipeService {
         let error: GeminiAPIError
     }
 
-    private static let apiKeyKey = "ai.gemini.apiKey"
     private let session: URLSession
     private let modelName = "gemini-1.5-flash"
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -135,7 +134,7 @@ final class AIRecipeService {
         images: [UIImage],
         referenceImages: [UIImage]
     ) async throws -> AIRecipeDraft {
-        guard let apiKey = loadAPIKey() else { throw ServiceError.missingAPIKey }
+        let apiKey = try await loadAPIKey()
         let endpoint = "\(baseURL)/\(modelName):generateContent?key=\(apiKey)"
         guard let url = URL(string: endpoint) else { throw ServiceError.invalidURL }
 
@@ -178,9 +177,14 @@ final class AIRecipeService {
         }
     }
 
-    private func loadAPIKey() -> String? {
-        if let storedKey = sanitizedKey(from: KeychainHelper.load(Self.apiKeyKey)) {
-            return storedKey
+    private func loadAPIKey() async throws -> String {
+        if let cached = SecretsService.shared.cachedGeminiAPIKey() {
+            return cached
+        }
+
+        if let remote = try? await SecretsService.shared.resolveSharedGeminiAPIKey(),
+           let sanitizedRemote = sanitizedKey(from: remote) {
+            return sanitizedRemote
         }
 
         if let secretsURL = Bundle.main.url(forResource: "GeminiSecrets", withExtension: "plist"),
@@ -195,7 +199,7 @@ final class AIRecipeService {
             return sanitizedEnvironmentKey
         }
 
-        return nil
+        throw ServiceError.missingAPIKey
     }
 
     private func sanitizedKey(from rawKey: String?) -> String? {
@@ -204,7 +208,7 @@ final class AIRecipeService {
             return nil
         }
 
-        KeychainHelper.save(Self.apiKeyKey, trimmed)
+        SecretsService.shared.cacheGeminiAPIKey(trimmed)
         return trimmed
     }
 

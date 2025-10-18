@@ -1,6 +1,6 @@
 import SwiftUI
 import FirebaseAuth
-import FirebaseFirestore
+import FirebaseCore
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -21,6 +21,9 @@ struct SettingsView: View {
 
     @State private var notificationSettings = AppUser.NotificationSettings.default
     @State private var privacySettings = AppUser.PrivacySettings.default
+    @State private var geminiAPIKey: String = ""
+    @State private var geminiStatusMessage: String?
+    @State private var isLoadingGeminiKey = false
 
     var body: some View {
         NavigationStack {
@@ -29,6 +32,7 @@ struct SettingsView: View {
                 phoneSection
                 notificationsSection
                 privacySection
+                aiSection
                 destructiveSection
             }
             .navigationTitle("Settings")
@@ -37,7 +41,10 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .onAppear(perform: loadUser)
+            .onAppear {
+                loadUser()
+                loadGeminiKey()
+            }
         }
     }
 
@@ -69,6 +76,12 @@ struct SettingsView: View {
             TextField("Phone number", text: $phoneNumber)
                 .keyboardType(.phonePad)
 
+            if let warning = phoneVerificationWarning {
+                Text(warning)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             Button {
                 sendVerificationCode()
             } label: {
@@ -78,7 +91,7 @@ struct SettingsView: View {
                     Text("Send verification code")
                 }
             }
-            .disabled(phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSendingCode)
+            .disabled(phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSendingCode || phoneVerificationWarning != nil)
 
             if verificationID != nil {
                 TextField("Verification code", text: $verificationCode)
@@ -93,7 +106,7 @@ struct SettingsView: View {
                         Text("Verify & save")
                     }
                 }
-                .disabled(verificationCode.count < 4 || isVerifyingCode)
+                .disabled(verificationCode.count < 4 || isVerifyingCode || phoneVerificationWarning != nil)
             }
 
             if let phoneStatusMessage {
@@ -160,6 +173,36 @@ struct SettingsView: View {
         }
     }
 
+    private var aiSection: some View {
+        Section("AI Drafting") {
+            if isLoadingGeminiKey {
+                ProgressView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                LabeledContent("Shared Gemini key") {
+                    Text(maskedGeminiKey)
+                        .monospaced()
+                        .foregroundColor(geminiAPIKey.isEmpty ? .secondary : .primary)
+                }
+            }
+
+            if let message = geminiStatusMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Button("Reload shared key") {
+                loadGeminiKey(force: true)
+            }
+            .disabled(isLoadingGeminiKey)
+
+            Text("The Gemini API key is managed centrally for all users. Update it in Firestore if you need to rotate the shared credential.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
     private var destructiveSection: some View {
         Section {
             Button(role: .destructive) {
@@ -213,8 +256,122 @@ struct SettingsView: View {
         }
     }
 
+    private func loadGeminiKey(force: Bool = false) {
+        if !force, let cached = SecretsService.shared.cachedGeminiAPIKey() {
+            geminiAPIKey = cached
+            geminiStatusMessage = "Using cached Gemini API key."
+            return
+        }
+
+        isLoadingGeminiKey = true
+        geminiStatusMessage = nil
+
+        Task {
+            do {
+                if let remote = try await SecretsService.shared.resolveSharedGeminiAPIKey() {
+                    await MainActor.run {
+                        geminiAPIKey = remote
+                        geminiStatusMessage = "Loaded the shared Gemini API key."
+                        isLoadingGeminiKey = false
+                    }
+                } else {
+                    let fallback = fallbackGeminiKey()
+                    await MainActor.run {
+                        if let fallback = fallback {
+                            geminiAPIKey = fallback
+                            geminiStatusMessage = "Using a fallback Gemini key until the shared key is configured."
+                        } else {
+                            geminiAPIKey = ""
+                            geminiStatusMessage = "No shared Gemini API key is configured yet."
+                        }
+                        isLoadingGeminiKey = false
+                    }
+                }
+            } catch {
+                let fallback = fallbackGeminiKey()
+                await MainActor.run {
+                    if let fallback = fallback {
+                        geminiAPIKey = fallback
+                        geminiStatusMessage = "Using a fallback Gemini key. Couldn't refresh the shared key: \(error.localizedDescription)"
+                    } else {
+                        geminiAPIKey = ""
+                        geminiStatusMessage = "Couldn't refresh the shared key: \(error.localizedDescription)"
+                    }
+                    isLoadingGeminiKey = false
+                }
+            }
+        }
+    }
+
+    private func fallbackGeminiKey() -> String? {
+        if let cached = SecretsService.shared.cachedGeminiAPIKey() {
+            return cached
+        }
+
+        if let secretsURL = Bundle.main.url(forResource: "GeminiSecrets", withExtension: "plist"),
+           let secrets = NSDictionary(contentsOf: secretsURL),
+           let bundledKey = secrets["GeminiAPIKey"] as? String,
+           let sanitized = sanitizedGeminiKey(from: bundledKey) {
+            return sanitized
+        }
+
+        if let environmentKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"],
+           let sanitized = sanitizedGeminiKey(from: environmentKey) {
+            return sanitized
+        }
+
+        return nil
+    }
+
+    private func sanitizedGeminiKey(from raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        SecretsService.shared.cacheGeminiAPIKey(trimmed)
+        return trimmed
+    }
+
+    private var maskedGeminiKey: String {
+        guard !geminiAPIKey.isEmpty else { return "Not configured" }
+        let prefixCount = min(4, geminiAPIKey.count)
+        let prefix = String(geminiAPIKey.prefix(prefixCount))
+        let maskCount = max(4, geminiAPIKey.count - prefixCount)
+        let mask = String(repeating: "•", count: maskCount)
+        return prefixCount == geminiAPIKey.count ? mask : prefix + mask
+    }
+
+    private var phoneVerificationWarning: String? {
+        guard let firebaseApp = FirebaseApp.app() else {
+            return "Phone verification is unavailable because Firebase isn't configured."
+        }
+
+        guard let bundleID = Bundle.main.bundleIdentifier else {
+            return "Phone verification is unavailable in this build."
+        }
+
+        if let configuredBundleID = firebaseApp.options.bundleID,
+           configuredBundleID != bundleID {
+            return "Phone verification is disabled in this build. Update GoogleService-Info.plist to match the app's bundle identifier."
+        }
+
+        return nil
+    }
+
     private func sendVerificationCode() {
         guard !phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        if let warning = phoneVerificationWarning {
+            phoneStatusMessage = warning
+            return
+        }
+
+        guard Auth.auth().currentUser != nil else {
+            phoneStatusMessage = "You need to be signed in to verify a phone number."
+            return
+        }
+
         isSendingCode = true
         phoneStatusMessage = "Sending…"
         PhoneAuthProvider.provider().verifyPhoneNumber(phoneNumber, uiDelegate: nil) { verificationID, error in
@@ -232,6 +389,17 @@ struct SettingsView: View {
 
     private func verifyCode() {
         guard let verificationID else { return }
+
+        if let warning = phoneVerificationWarning {
+            phoneStatusMessage = warning
+            return
+        }
+
+        guard Auth.auth().currentUser != nil else {
+            phoneStatusMessage = "You need to be signed in to verify a phone number."
+            return
+        }
+
         isVerifyingCode = true
         phoneStatusMessage = "Verifying…"
         let credential = PhoneAuthProvider.provider().credential(withVerificationID: verificationID,

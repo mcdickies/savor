@@ -108,9 +108,12 @@ struct PostCard: View {
                 }
             }
 
-            Text("by \(HandleFormatter.normalizedHandle(from: post.authorName))")
-                .appTextStyle(.caption)
-                .foregroundColor(.secondary)
+            NavigationLink(destination: ProfileView(userID: post.authorID)) {
+                Text("by \(HandleFormatter.normalizedHandle(from: post.authorName))")
+                    .appTextStyle(.caption)
+                    .foregroundColor(.accentColor)
+            }
+            .buttonStyle(.plain)
         }
     }
 

@@ -754,7 +754,13 @@ struct AIDraftWorkshopView_Previews: PreviewProvider {
                 ingredients: .constant(["sweet potatoes", "poached eggs", "chimichurri"]),
                 selectedImages: .constant([]),
                 aiReferenceImages: .constant([]),
-                audioTranscript: .constant("Toast bread. Layer greens. Finish with lemon zest.")
+                audioTranscript: .constant("Toast bread. Layer greens. Finish with lemon zest."),
+                cookTime: .constant("25 minutes"),
+                calorieEstimate: .constant("520"),
+                aiNotes: .constant([
+                    "Consider swapping sweet potatoes for roasted squash in fall.",
+                    "Offer a dairy-free chimichurri option with olive oil only."
+                ])
             )
         }
     }

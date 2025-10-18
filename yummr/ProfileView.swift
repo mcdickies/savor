@@ -2,7 +2,6 @@ import SwiftUI
 import Firebase
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFirestore
 import FirebaseStorage
 
 struct ProfileView: View {
@@ -30,8 +29,12 @@ struct ProfileView: View {
     @State private var selectedProfileImage: UIImage?
     @State private var selectedBannerImage: UIImage?
     @State private var showSettings = false
+    @State private var followerCount: Int = 0
+    @State private var followingCount: Int = 0
+    @State private var activeFriendList: FriendListView.Mode?
 
     private let db = Firestore.firestore()
+    @State private var friendListener: ListenerRegistration?
 
     private var resolvedUserID: String? {
         userID ?? auth.currentUser?.uid
@@ -116,7 +119,9 @@ struct ProfileView: View {
             loadProfileData()
             loadPosts()
             loadTaggedPosts()
+            startFriendListener()
         }
+        .onDisappear(perform: stopFriendListener)
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(image: $selectedProfileImage)
                 .onDisappear { uploadProfileImage() }
@@ -128,6 +133,24 @@ struct ProfileView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(auth)
+        }
+        .sheet(item: $activeFriendList) { mode in
+            if let userID = resolvedUserID {
+                FriendListView(userID: userID, mode: mode)
+            } else {
+                NavigationView {
+                    VStack(spacing: 16) {
+                        Image(systemName: "person.crop.circle.badge.questionmark")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text("User information is unavailable.")
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .navigationTitle(mode.title)
+                }
+            }
         }
     }
 
@@ -239,20 +262,38 @@ struct ProfileView: View {
 
     private var statsSection: some View {
         HStack {
-            VStack {
-                Text("Followers")
-                    .font(.caption)
-                Text("\(profileUser?.followerCount ?? 0)")
-                    .bold()
+            Button {
+                activeFriendList = .followers
+            } label: {
+                VStack {
+                    Text("Followers")
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                    Text("\(followerCount)")
+                        .bold()
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
-            VStack {
-                Text("Following")
-                    .font(.caption)
-                Text("\(profileUser?.followingCount ?? 0)")
-                    .bold()
+            .buttonStyle(.plain)
+            .disabled(resolvedUserID == nil)
+
+            Button {
+                activeFriendList = .following
+            } label: {
+                VStack {
+                    Text("Following")
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                    Text("\(followingCount)")
+                        .bold()
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
+            .disabled(resolvedUserID == nil)
+
             VStack {
                 Text("Posts")
                     .font(.caption)
@@ -271,6 +312,8 @@ struct ProfileView: View {
                 DispatchQueue.main.async {
                     self.profileUser = user
                     self.bio = user.bio ?? ""
+                    self.followerCount = user.followerCount ?? 0
+                    self.followingCount = user.followingCount ?? 0
                     if let profileURL = user.profileImageURL, let url = URL(string: profileURL) {
                         self.profileImageURL = url
                     }
@@ -307,7 +350,7 @@ struct ProfileView: View {
 
     private func updateBio() {
         guard let uid = resolvedUserID else { return }
-        db.collection("users").document(uid).updateData(["bio": bio])
+        db.collection("users").document(uid).setData(["bio": bio], merge: true)
         if isCurrentUser {
             self.profileUser?.bio = bio
         }
@@ -326,7 +369,7 @@ struct ProfileView: View {
                         DispatchQueue.main.async {
                             self.profileImageURL = url
                         }
-                        db.collection("users").document(uid).updateData(["profileImageURL": url.absoluteString])
+                        db.collection("users").document(uid).setData(["profileImageURL": url.absoluteString], merge: true)
                     }
                 }
             }
@@ -346,11 +389,27 @@ struct ProfileView: View {
                         DispatchQueue.main.async {
                             self.bannerImageURL = url
                         }
-                        db.collection("users").document(uid).updateData(["bannerImageURL": url.absoluteString])
+                        db.collection("users").document(uid).setData(["bannerImageURL": url.absoluteString], merge: true)
                     }
                 }
             }
         }
+    }
+
+    private func startFriendListener() {
+        guard isCurrentUser, let uid = resolvedUserID else { return }
+        friendListener?.remove()
+        friendListener = FriendService.shared.observeFriendIDs(for: uid) { ids in
+            DispatchQueue.main.async {
+                self.followerCount = ids.count
+                self.followingCount = ids.count
+            }
+        }
+    }
+
+    private func stopFriendListener() {
+        friendListener?.remove()
+        friendListener = nil
     }
 }
 
@@ -376,5 +435,140 @@ private struct TagSection: View {
             }
         }
         .padding(.horizontal)
+    }
+}
+
+private struct FriendListView: View {
+    enum Mode: String, Identifiable {
+        case followers
+        case following
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .followers: return "Followers"
+            case .following: return "Following"
+            }
+        }
+
+        var emptyMessage: String {
+            switch self {
+            case .followers: return "No followers yet."
+            case .following: return "Not following anyone yet."
+            }
+        }
+    }
+
+    let userID: String
+    let mode: Mode
+
+    @State private var isLoading = true
+    @State private var users: [AppUser] = []
+    @State private var errorMessage: String?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            Group {
+                if let errorMessage {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundColor(.orange)
+                        Text(errorMessage)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                } else if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                } else if users.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.questionmark")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text(mode.emptyMessage)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                } else {
+                    List {
+                        ForEach(users.indices, id: \.self) { index in
+                            let user = users[index]
+                            NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
+                                HStack(spacing: 12) {
+                                    CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.2))
+                                            .frame(width: 44, height: 44)
+                                    }
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(Circle())
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(user.displayName)
+                                            .font(.body)
+                                        Text("@\(user.handle)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle(mode.title)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .onAppear(perform: loadUsers)
+    }
+
+    private func loadUsers() {
+        guard !userID.isEmpty else {
+            errorMessage = "User information is unavailable."
+            isLoading = false
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        FriendService.shared.fetchFriendIDs(for: userID) { result in
+            switch result {
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                    self.isLoading = false
+                }
+            case .success(let ids):
+                guard !ids.isEmpty else {
+                    DispatchQueue.main.async {
+                        self.users = []
+                        self.isLoading = false
+                    }
+                    return
+                }
+
+                UserService.shared.fetchUsers(withIDs: ids) { users in
+                    let sorted = users.sorted {
+                        ($0.displayName.lowercased(), $0.handle.lowercased())
+                            < ($1.displayName.lowercased(), $1.handle.lowercased())
+                    }
+                    self.users = sorted
+                    self.isLoading = false
+                }
+            }
+        }
     }
 }
