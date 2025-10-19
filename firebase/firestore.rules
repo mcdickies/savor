@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
+
+      match /collections/{collectionId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /friends/{friendId} {
+        allow read: if isSignedIn() && (request.auth.uid == userId || request.auth.uid == friendId);
+        allow write: if isSignedIn() && (request.auth.uid == userId || request.auth.uid == friendId);
+      }
+
+      match /friendRequests/{requesterId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && request.auth.uid == requesterId;
+        allow delete: if isSignedIn() && (request.auth.uid == userId || request.auth.uid == requesterId);
+      }
+
+      match /private/{document=**} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.authorID;
+      allow update: if isSignedIn()
+        && resource.data.authorID == request.auth.uid
+        && request.resource.data.authorID == resource.data.authorID;
+      allow delete: if isSignedIn() && resource.data.authorID == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.auth.uid == request.resource.data.authorID;
+        allow update: if isSignedIn()
+          && (request.auth.uid == resource.data.authorID
+              || request.auth.uid == get(/databases/$(database)/documents/posts/$(postId)).data.authorID);
+        allow delete: if isSignedIn()
+          && (request.auth.uid == resource.data.authorID
+              || request.auth.uid == get(/databases/$(database)/documents/posts/$(postId)).data.authorID);
+      }
+    }
+
+    match /appConfig/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
