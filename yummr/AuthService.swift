@@ -14,8 +14,15 @@ class AuthService: ObservableObject {
     init() {
         self.currentUser = Auth.auth().currentUser
 
+        if let user = self.currentUser {
+            UserService.shared.ensureUserDocument(for: user)
+        }
+
         Auth.auth().addStateDidChangeListener { _, user in
             self.currentUser = user
+            if let user = user {
+                UserService.shared.ensureUserDocument(for: user)
+            }
         }
     }
 
@@ -26,6 +33,9 @@ class AuthService: ObservableObject {
             if let error = error {
                 completion(false, error.localizedDescription)
             } else {
+                if let user = result?.user {
+                    UserService.shared.ensureUserDocument(for: user)
+                }
                 self.currentUser = result?.user
                 completion(true, nil)
             }
@@ -48,6 +58,11 @@ class AuthService: ObservableObject {
                     } else {
                         // Refresh currentUser so displayName is populated
                         self.currentUser = Auth.auth().currentUser
+                        if let refreshed = self.currentUser {
+                            UserService.shared.ensureUserDocument(for: refreshed, displayName: displayName)
+                        } else {
+                            UserService.shared.ensureUserDocument(for: user, displayName: displayName)
+                        }
                         completion(true, nil)
                     }
                 }

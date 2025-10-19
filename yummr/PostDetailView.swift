@@ -116,9 +116,13 @@ struct PostDetailView: View {
                         .font(.caption)
                 }
             }
-            Text("by \(HandleFormatter.normalizedHandle(from: livePost.authorName))")
-                .appTextStyle(.caption)
-                .foregroundColor(.secondary)
+
+            NavigationLink(destination: ProfileView(userID: livePost.authorID)) {
+                Text("by \(HandleFormatter.normalizedHandle(from: livePost.authorName))")
+                    .appTextStyle(.caption)
+                    .foregroundColor(.accentColor)
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -294,6 +298,8 @@ struct PostDetailView: View {
                 .appTextStyle(.subheadline, weight: .semibold)
             TextField("Share your thoughts…", text: $newComment, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
+                .submitLabel(.send)
+                .onSubmit(postComment)
             if !mentionSuggestions.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -362,7 +368,8 @@ struct PostDetailView: View {
         }
         mentionSuggestions = []
         if let id = user.id {
-            mentionLookup[handle] = id
+            let bare = handle.hasPrefix("@") ? String(handle.dropFirst()) : handle
+            mentionLookup[bare.lowercased()] = id
         }
     }
 
@@ -381,6 +388,11 @@ struct PostDetailView: View {
         UserService.shared.searchUsers(matching: String(query)) { users in
             DispatchQueue.main.async {
                 mentionSuggestions = users
+                for user in users {
+                    if let id = user.id {
+                        mentionLookup[user.handle.lowercased()] = id
+                    }
+                }
             }
         }
     }
@@ -395,37 +407,107 @@ struct PostDetailView: View {
         let fallbackName = user.displayName ?? user.email ?? "Anonymous"
 
         UserService.shared.fetchUser(withID: user.uid) { appUser in
-            let authorHandle = HandleFormatter.normalizedHandle(from: appUser?.handle)
+            let authorHandle = HandleFormatter.normalizedHandleIfPresent(appUser?.handle)
                 ?? HandleFormatter.normalizedHandle(from: fallbackName)
 
-            DispatchQueue.main.async {
-                var payload: [String: Any] = [
-                    "text": text,
-                    "timestamp": Timestamp(date: Date()),
-                    "authorID": user.uid,
-                    "authorName": authorHandle
-                ]
-
-                let mentions = mentionLookup
-                if !mentions.isEmpty {
-                    payload["mentionedUsers"] = mentions
-                }
-
-                Firestore.firestore()
+            resolveTaggedUserIDs(in: text) { taggedIDs in
+                let collection = Firestore.firestore()
                     .collection("posts")
                     .document(postID)
                     .collection("comments")
-                    .addDocument(data: payload) { error in
-                        if let error = error {
-                            print("Error posting comment: \(error)")
-                            return
-                        }
 
+                let document = collection.document()
+                let comment = Comment(
+                    id: document.documentID,
+                    text: text,
+                    authorID: user.uid,
+                    authorName: authorHandle,
+                    parentCommentID: nil,
+                    taggedUserIDs: taggedIDs,
+                    timestamp: Date()
+                )
+
+                do {
+                    try document.setData(from: comment)
+                    DispatchQueue.main.async {
                         newComment = ""
                         mentionSuggestions = []
                         mentionLookup = [:]
                     }
+                } catch {
+                    print("Error posting comment: \(error)")
+                }
             }
+        }
+    }
+
+    private func resolveTaggedUserIDs(in text: String, completion: @escaping ([String]) -> Void) {
+        var uniqueHandles: [String: String] = [:]
+        for token in text.split(separator: " ") where token.hasPrefix("@") {
+            let stripped = String(token.dropFirst())
+            guard !stripped.isEmpty else { continue }
+            let lower = stripped.lowercased()
+            if uniqueHandles[lower] == nil {
+                uniqueHandles[lower] = stripped
+            }
+        }
+
+        guard !uniqueHandles.isEmpty else {
+            completion([])
+            return
+        }
+
+        let syncQueue = DispatchQueue(label: "PostDetailView.resolveTaggedUserIDs")
+        var resolved: [String] = []
+        let group = DispatchGroup()
+
+        func appendResolved(_ id: String) {
+            syncQueue.async {
+                resolved.append(id)
+            }
+        }
+
+        for (lower, original) in uniqueHandles {
+            if let cached = mentionLookup[lower] {
+                appendResolved(cached)
+                continue
+            }
+
+            group.enter()
+            UserService.shared.fetchUser(withHandle: original) { user in
+                if let id = user?.id {
+                    appendResolved(id)
+                    DispatchQueue.main.async {
+                        mentionLookup[lower] = id
+                    }
+                    group.leave()
+                    return
+                }
+
+                let fallback = original.lowercased()
+                guard fallback != original else {
+                    group.leave()
+                    return
+                }
+
+                UserService.shared.fetchUser(withHandle: fallback) { fallbackUser in
+                    if let id = fallbackUser?.id {
+                        appendResolved(id)
+                        DispatchQueue.main.async {
+                            mentionLookup[lower] = id
+                        }
+                    }
+                    group.leave()
+                }
+            }
+        }
+
+        group.notify(queue: .main) {
+            var final: [String] = []
+            syncQueue.sync {
+                final = resolved
+            }
+            completion(Array(Set(final)))
         }
     }
 

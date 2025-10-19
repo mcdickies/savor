@@ -42,6 +42,8 @@ struct CreatePostView: View {
     @State private var recipe: AttributedString = AttributedString()
     @State private var cookTime = ""
     @State private var calorieEstimate = ""
+    @State private var starRating: Double = 0
+    @State private var isFavorite = false
     @State private var ingredients: [String] = []
     @State private var ingredientDraft = ""
     @State private var selectedImages: [UIImage] = []
@@ -54,6 +56,7 @@ struct CreatePostView: View {
     @State private var errorMessage: String?
 
     @State private var showCameraPicker = false
+    @State private var cameraUnavailableAlert = false
     @State private var capturedImage: UIImage?
 
     @State private var taggingMode: TaggingMode = .post
@@ -124,6 +127,8 @@ struct CreatePostView: View {
                         TextField("Calories (estimated)", text: $calorieEstimate)
                             .keyboardType(.numberPad)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        ratingSection
                     }
 
                     ingredientsSection
@@ -175,6 +180,11 @@ struct CreatePostView: View {
         .sheet(isPresented: $showCameraPicker) {
             ImagePicker(image: $capturedImage, sourceType: .camera)
         }
+        .alert("Camera unavailable", isPresented: $cameraUnavailableAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("This device can't capture photos right now. Try selecting images from your library instead.")
+        }
         .onChange(of: selectedPhotos) { items in
             Task {
                 selectedImages = []
@@ -203,6 +213,26 @@ struct CreatePostView: View {
                     tagSearchResults = users
                 }
             }
+        }
+    }
+
+    private var ratingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Your rating")
+                .font(.headline)
+
+            HStack(alignment: .center, spacing: 12) {
+                Slider(value: $starRating, in: 0...5, step: 0.5) {
+                    Text("Star rating")
+                }
+                Text(String(format: "%.1f ★", starRating))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(width: 72, alignment: .trailing)
+                    .accessibilityHidden(true)
+            }
+
+            Toggle("Mark as favorite", isOn: $isFavorite)
         }
     }
 
@@ -255,11 +285,14 @@ struct CreatePostView: View {
                 }
 
                 Button {
-                    showCameraPicker = true
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        showCameraPicker = true
+                    } else {
+                        cameraUnavailableAlert = true
+                    }
                 } label: {
                     Label("Capture Photo", systemImage: "camera")
                 }
-                .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
             }
 
             if !selectedImages.isEmpty {
@@ -467,6 +500,15 @@ struct CreatePostView: View {
             extras["aiNotes"] = aiNotes.joined(separator: "\n")
         }
 
+        let roundedRating = (starRating * 10).rounded() / 10
+        if roundedRating > 0 {
+            extras["starRating"] = String(format: "%.1f", roundedRating)
+        }
+
+        if isFavorite {
+            extras["isFavorite"] = "true"
+        }
+
         let recipeText = recipe.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitizedSteps = sanitizedInstructionSteps(from: recipeText)
         let recipePayload = sanitizedSteps.isEmpty ? nil : sanitizedSteps.joined(separator: "\n")
@@ -503,6 +545,8 @@ struct CreatePostView: View {
                 audioTranscript = ""
                 aiReferenceImages = []
                 calorieEstimate = ""
+                starRating = 0
+                isFavorite = false
                 aiNotes = []
             case .failure(let error):
                 errorMessage = error.localizedDescription

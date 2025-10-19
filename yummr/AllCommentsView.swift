@@ -221,7 +221,8 @@ struct AllCommentsView: View {
         let normalizedHandle = HandleFormatter.normalizedHandle(from: user.handle)
         guard normalizedHandle.count > 1 else { return }
         if let id = user.id {
-            mentionLookup[String(normalizedHandle.dropFirst())] = id
+            let bare = String(normalizedHandle.dropFirst()).lowercased()
+            mentionLookup[bare] = id
         }
 
         var tokens = newComment.split(separator: " ", omittingEmptySubsequences: false)
@@ -247,7 +248,7 @@ struct AllCommentsView: View {
                 mentionSuggestions = users
                 users.forEach { user in
                     if let id = user.id {
-                        mentionLookup[user.handle] = id
+                        mentionLookup[user.handle.lowercased()] = id
                     }
                 }
             }
@@ -261,7 +262,8 @@ struct AllCommentsView: View {
 
         let fallbackName = auth.currentUser?.displayName ?? auth.currentUser?.email ?? "Anonymous"
         UserService.shared.fetchUser(withID: uid) { appUser in
-            let authorHandle = HandleFormatter.normalizedHandle(from: appUser?.handle) ?? HandleFormatter.normalizedHandle(from: fallbackName)
+            let authorHandle = HandleFormatter.normalizedHandleIfPresent(appUser?.handle)
+                ?? HandleFormatter.normalizedHandle(from: fallbackName)
 
             resolveTaggedUserIDs(in: trimmedComment) { taggedIDs in
                 var ref: DocumentReference
@@ -302,35 +304,72 @@ struct AllCommentsView: View {
     }
 
     private func resolveTaggedUserIDs(in text: String, completion: @escaping ([String]) -> Void) {
-        let handles = Set(text.split(separator: " ")
-            .filter { $0.hasPrefix("@") }
-            .map { String($0.dropFirst()) })
+        var uniqueHandles: [String: String] = [:]
+        for token in text.split(separator: " ") where token.hasPrefix("@") {
+            let stripped = String(token.dropFirst())
+            guard !stripped.isEmpty else { continue }
+            let lower = stripped.lowercased()
+            if uniqueHandles[lower] == nil {
+                uniqueHandles[lower] = stripped
+            }
+        }
 
-        guard !handles.isEmpty else {
+        guard !uniqueHandles.isEmpty else {
             completion([])
             return
         }
 
+        let syncQueue = DispatchQueue(label: "AllCommentsView.resolveTaggedUserIDs")
         var resolved: [String] = []
         let group = DispatchGroup()
 
-        for handle in handles {
-            if let cached = mentionLookup[handle] {
-                resolved.append(cached)
+        func appendResolved(_ id: String) {
+            syncQueue.async {
+                resolved.append(id)
+            }
+        }
+
+        for (lower, original) in uniqueHandles {
+            if let cached = mentionLookup[lower] {
+                appendResolved(cached)
                 continue
             }
 
             group.enter()
-            UserService.shared.fetchUser(withHandle: handle) { user in
+            UserService.shared.fetchUser(withHandle: original) { user in
                 if let id = user?.id {
-                    resolved.append(id)
+                    appendResolved(id)
+                    DispatchQueue.main.async {
+                        mentionLookup[lower] = id
+                    }
+                    group.leave()
+                    return
                 }
-                group.leave()
+
+                let fallback = original.lowercased()
+                guard fallback != original else {
+                    group.leave()
+                    return
+                }
+
+                UserService.shared.fetchUser(withHandle: fallback) { fallbackUser in
+                    if let id = fallbackUser?.id {
+                        appendResolved(id)
+                        DispatchQueue.main.async {
+                            mentionLookup[lower] = id
+                        }
+                    }
+                    group.leave()
+                }
             }
         }
 
         group.notify(queue: .main) {
-            completion(Array(Set(resolved)))
+            var final: [String] = []
+            syncQueue.sync {
+                final = resolved
+            }
+            completion(Array(Set(final)))
         }
     }
 
