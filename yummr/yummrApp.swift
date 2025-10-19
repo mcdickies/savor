@@ -10,12 +10,36 @@ import FirebaseCore
 @main
 struct YummrApp: App {
     init() {
-        FirebaseApp.configure()
+        Self.configureFirebaseIfNeeded()
     }
 
     var body: some Scene {
         WindowGroup {
             AppRootView()
+        }
+    }
+
+    private static func configureFirebaseIfNeeded() {
+        guard FirebaseApp.app() == nil else { return }
+
+        FirebaseBootstrapState.resolvedBundleMismatch = false
+        FirebaseBootstrapState.warning = nil
+
+        if let filePath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+           let options = FirebaseOptions(contentsOfFile: filePath) {
+            if let actualBundleID = Bundle.main.bundleIdentifier {
+                if options.bundleID != actualBundleID {
+                    options.bundleID = actualBundleID
+                    FirebaseBootstrapState.resolvedBundleMismatch = true
+                }
+                FirebaseApp.configure(options: options)
+            } else {
+                FirebaseBootstrapState.warning = "Phone verification is unavailable because the bundle identifier is missing."
+                FirebaseApp.configure(options: options)
+            }
+        } else {
+            FirebaseBootstrapState.warning = "Phone verification is unavailable because GoogleService-Info.plist is missing."
+            FirebaseApp.configure()
         }
     }
 }
@@ -43,4 +67,9 @@ private struct AppRootView: View {
             }
         }
     }
+}
+
+enum FirebaseBootstrapState {
+    static var resolvedBundleMismatch = false
+    static var warning: String?
 }

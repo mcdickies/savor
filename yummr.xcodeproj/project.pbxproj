@@ -32,17 +32,26 @@
 		D0B8CA122E7D073700E5233D /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8C9F92E7D055300E5233D /* SplashScreenView.swift */; };
 		D0B8CA132E7D073700E5233D /* RichTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8C9FD2E7D055400E5233D /* RichTextEditor.swift */; };
 		D0B8CA142E7D073700E5233D /* CachedWebImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8C9FF2E7D055400E5233D /* CachedWebImage.swift */; };
-		D0B8CA152E7D073700E5233D /* AudioRecorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8CA0A2E7D055500E5233D /* AudioRecorderService.swift */; };
-		D0B8CA162E7D073700E5233D /* AIRecipeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8C9F02E7D055200E5233D /* AIRecipeService.swift */; };
-		D0B8CA172E7D073700E5233D /* AIDraftWorkshopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8CA0D2E7D055500E5233D /* AIDraftWorkshopView.swift */; };
-		D0B8CA192E7D08BB00E5233D /* UserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8CA182E7D08BB00E5233D /* UserService.swift */; };
+               D0B8CA152E7D073700E5233D /* AudioRecorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8CA0A2E7D055500E5233D /* AudioRecorderService.swift */; };
+               D0B8CA162E7D073700E5233D /* AIRecipeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8C9F02E7D055200E5233D /* AIRecipeService.swift */; };
+               D0B8CA172E7D073700E5233D /* AIDraftWorkshopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8CA0D2E7D055500E5233D /* AIDraftWorkshopView.swift */; };
+               D0F9B2B02F12A1BC00FF1234 /* SecretsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F9B2AF2F12A1BC00FF1234 /* SecretsService.swift */; };
+               D0B8CA192E7D08BB00E5233D /* UserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8CA182E7D08BB00E5233D /* UserService.swift */; };
 		D0DDE65D2E0FD0BA00691496 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE65C2E0FD0BA00691496 /* Post.swift */; };
 		D0DDE65F2E0FD0CB00691496 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE65E2E0FD0CB00691496 /* FeedView.swift */; };
 		D0DDE6612E0FDBB100691496 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6602E0FDBB100691496 /* KeychainHelper.swift */; };
 		D0DDE6632E0FDD7A00691496 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6622E0FDD7A00691496 /* LoginView.swift */; };
 		D0DDE6652E0FFC9A00691496 /* PostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6642E0FFC9A00691496 /* PostCard.swift */; };
 		D0DDE6672E10079900691496 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6662E10079800691496 /* StorageService.swift */; };
-		D0DDE66B2E10081200691496 /* PostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE66A2E10080900691496 /* PostService.swift */; };
+               D0DDE66B2E10081200691496 /* PostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE66A2E10080900691496 /* PostService.swift */; };
+               5245134BD0E741E2A95C1C90 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51C871FB7FE4EE2B4554E47 /* NotificationsView.swift */; };
+               0CB419EB6677440CA3AD552C /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F171E00D663D4900A4ECFD7B /* NotificationService.swift */; };
+               6BF2E2F13D41420D8B5A10E5 /* FriendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBDC2B27884E4BD7879DDB73 /* FriendService.swift */; };
+               C284E4E8223A47A38505BBC5 /* HandleFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5486A9A2CD47E99906DA89 /* HandleFormatter.swift */; };
+               D7AB5B5E980146F5B73918CA /* EditPostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF6198539F34F74B48EA21F /* EditPostView.swift */; };
+               62F092BB75CF4A9A98364E01 /* SavedCollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABFBACA75FF45F2BE2030BB /* SavedCollectionsView.swift */; };
+               1B45E95F97BF43F1B2BF2F8B /* SavedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCE5FA22DE454CBCA73BD79F /* SavedService.swift */; };
+               DC69BA63FA2F47199A218B19 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46FE71A60344F01B95942B5 /* SettingsView.swift */; };
 		D0DDE66D2E10084100691496 /* CreatePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE66C2E10084100691496 /* CreatePostView.swift */; };
 		D0DDE6772E100F4500691496 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6762E100F4500691496 /* ImagePicker.swift */; };
 		D0E7494D2E37724C008B42CD /* notes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7494C2E377245008B42CD /* notes.swift */; };
@@ -77,10 +86,11 @@
 		D0B8C9FE2E7D055400E5233D /* Comment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
 		D0B8C9FF2E7D055400E5233D /* CachedWebImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedWebImage.swift; sourceTree = "<group>"; };
 		D0B8CA012E7D055400E5233D /* CreatePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePostView.swift; sourceTree = "<group>"; };
-		D0B8CA0A2E7D055500E5233D /* AudioRecorderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderService.swift; sourceTree = "<group>"; };
-		D0B8CA0B2E7D055500E5233D /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
-		D0B8CA0D2E7D055500E5233D /* AIDraftWorkshopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDraftWorkshopView.swift; sourceTree = "<group>"; };
-		D0B8CA0E2E7D070B00E5233D /* AppUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUser.swift; sourceTree = "<group>"; };
+               D0B8CA0A2E7D055500E5233D /* AudioRecorderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderService.swift; sourceTree = "<group>"; };
+               D0B8CA0B2E7D055500E5233D /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+               D0B8CA0D2E7D055500E5233D /* AIDraftWorkshopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDraftWorkshopView.swift; sourceTree = "<group>"; };
+               D0F9B2AF2F12A1BC00FF1234 /* SecretsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretsService.swift; sourceTree = "<group>"; };
+               D0B8CA0E2E7D070B00E5233D /* AppUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUser.swift; sourceTree = "<group>"; };
 		D0B8CA102E7D071900E5233D /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		D0B8CA182E7D08BB00E5233D /* UserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserService.swift; sourceTree = "<group>"; };
 		D0DDE65C2E0FD0BA00691496 /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
@@ -92,7 +102,15 @@
 		D0DDE66A2E10080900691496 /* PostService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostService.swift; sourceTree = "<group>"; };
 		D0DDE66C2E10084100691496 /* CreatePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePostView.swift; sourceTree = "<group>"; };
 		D0DDE6762E100F4500691496 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
-		D0E7494C2E377245008B42CD /* notes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = notes.swift; sourceTree = "<group>"; };
+               D0E7494C2E377245008B42CD /* notes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = notes.swift; sourceTree = "<group>"; };
+               C51C871FB7FE4EE2B4554E47 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+               F171E00D663D4900A4ECFD7B /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+               FBDC2B27884E4BD7879DDB73 /* FriendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendService.swift; sourceTree = "<group>"; };
+               DD5486A9A2CD47E99906DA89 /* HandleFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandleFormatter.swift; sourceTree = "<group>"; };
+               6FF6198539F34F74B48EA21F /* EditPostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPostView.swift; sourceTree = "<group>"; };
+               2ABFBACA75FF45F2BE2030BB /* SavedCollectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedCollectionsView.swift; sourceTree = "<group>"; };
+               DCE5FA22DE454CBCA73BD79F /* SavedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedService.swift; sourceTree = "<group>"; };
+               C46FE71A60344F01B95942B5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,10 +188,19 @@
                                 D03A82DC2E0F865900AA7342 /* GoogleService-Info.plist */,
                                 4BF1CEA6F29C4242173CE3B0 /* GeminiSecrets.plist */,
                                 D03A82D42E0F85C400AA7342 /* Preview Content */,
-				D03A834B2E0F8A7900AA7342 /* AuthService.swift */,
-				D03A834D2E0F8A9500AA7342 /* RootView.swift */,
-				D03A834F2E0F8AAD00AA7342 /* AuthView.swift */,
-			);
+                                D03A834B2E0F8A7900AA7342 /* AuthService.swift */,
+                                D03A834D2E0F8A9500AA7342 /* RootView.swift */,
+                                D03A834F2E0F8AAD00AA7342 /* AuthView.swift */,
+                                C51C871FB7FE4EE2B4554E47 /* NotificationsView.swift */,
+                                F171E00D663D4900A4ECFD7B /* NotificationService.swift */,
+                                FBDC2B27884E4BD7879DDB73 /* FriendService.swift */,
+                                DD5486A9A2CD47E99906DA89 /* HandleFormatter.swift */,
+                                6FF6198539F34F74B48EA21F /* EditPostView.swift */,
+                                2ABFBACA75FF45F2BE2030BB /* SavedCollectionsView.swift */,
+                                DCE5FA22DE454CBCA73BD79F /* SavedService.swift */,
+                                D0F9B2AF2F12A1BC00FF1234 /* SecretsService.swift */,
+                                C46FE71A60344F01B95942B5 /* SettingsView.swift */,
+                        );
 			path = yummr;
 			sourceTree = "<group>";
 		};
@@ -299,12 +326,21 @@
                                 D0DDE6652E0FFC9A00691496 /* PostCard.swift in Sources */,
                                 D12E7A632FD454BB00E9CB25 /* StarRatingView.swift in Sources */,
                                 D03E44042E12DE2B00FE91E9 /* PostDetailView.swift in Sources */,
-				D0DDE66B2E10081200691496 /* PostService.swift in Sources */,
-				D0DDE6672E10079900691496 /* StorageService.swift in Sources */,
-				D0DDE6632E0FDD7A00691496 /* LoginView.swift in Sources */,
-				20EE8CD89FDC41D0A46F8425 /* UserPostsFeedView.swift in Sources */,
-				D0DDE65D2E0FD0BA00691496 /* Post.swift in Sources */,
-			);
+                                D0DDE66B2E10081200691496 /* PostService.swift in Sources */,
+                                D0DDE6672E10079900691496 /* StorageService.swift in Sources */,
+                                D0DDE6632E0FDD7A00691496 /* LoginView.swift in Sources */,
+                                20EE8CD89FDC41D0A46F8425 /* UserPostsFeedView.swift in Sources */,
+                                D0DDE65D2E0FD0BA00691496 /* Post.swift in Sources */,
+                                5245134BD0E741E2A95C1C90 /* NotificationsView.swift in Sources */,
+                                0CB419EB6677440CA3AD552C /* NotificationService.swift in Sources */,
+                                6BF2E2F13D41420D8B5A10E5 /* FriendService.swift in Sources */,
+                                C284E4E8223A47A38505BBC5 /* HandleFormatter.swift in Sources */,
+                                D7AB5B5E980146F5B73918CA /* EditPostView.swift in Sources */,
+                                62F092BB75CF4A9A98364E01 /* SavedCollectionsView.swift in Sources */,
+                                1B45E95F97BF43F1B2BF2F8B /* SavedService.swift in Sources */,
+                                D0F9B2B02F12A1BC00FF1234 /* SecretsService.swift in Sources */,
+                                DC69BA63FA2F47199A218B19 /* SettingsView.swift in Sources */,
+                        );
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -442,8 +478,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Savor.;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Explain why Savor needs microphone access (e.g., To record your cooking notes).";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Explain why Savor performs speech recognition (e.g., To transcribe your recorded notes).";
+                                INFOPLIST_KEY_NSCameraUsageDescription = "Savor needs camera access so you can capture photos and videos of your dishes.";
+                                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Savor uses the microphone to record your cooking notes and audio prompts.";
+                                INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Savor converts your recorded cooking notes to text with speech recognition.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -454,7 +491,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = jakubwozny.yummr;
+                            PRODUCT_BUNDLE_IDENTIFIER = jakubwozny.yummr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -475,8 +512,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Savor.;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Explain why Savor needs microphone access (e.g., To record your cooking notes).";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Explain why Savor performs speech recognition (e.g., To transcribe your recorded notes).";
+                                INFOPLIST_KEY_NSCameraUsageDescription = "Savor needs camera access so you can capture photos and videos of your dishes.";
+                                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Savor uses the microphone to record your cooking notes and audio prompts.";
+                                INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Savor converts your recorded cooking notes to text with speech recognition.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -487,7 +525,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = jakubwozny.yummr;
+                            PRODUCT_BUNDLE_IDENTIFIER = jakubwozny.yummr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

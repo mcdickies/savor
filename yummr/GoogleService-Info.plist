@@ -8,8 +8,8 @@
 	<string>477333696800</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
-	<key>BUNDLE_ID</key>
-	<string>com.jakubwozny.yummr</string>
+        <key>BUNDLE_ID</key>
+        <string>jakubwozny.yummr</string>
 	<key>PROJECT_ID</key>
 	<string>yummr-d6ec9</string>
 	<key>STORAGE_BUCKET</key>

@@ -7,12 +7,115 @@
 
 
 import Foundation
+import FirebaseAuth
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 
 final class UserService: ObservableObject {
     static let shared = UserService()
     private let db = Firestore.firestore()
+
+    func ensureUserDocument(for user: User,
+                             displayName overrideDisplayName: String? = nil,
+                             completion: ((Error?) -> Void)? = nil) {
+        let userRef = db.collection("users").document(user.uid)
+
+        userRef.getDocument { snapshot, error in
+            if let error = error {
+                completion?(error)
+                return
+            }
+
+            let existingData = snapshot?.data() ?? [:]
+
+            let rawDisplayName = overrideDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                .flatMap { $0.isEmpty ? nil : $0 }
+                ?? user.displayName
+                ?? user.email
+                ?? "New Chef"
+
+            let normalizedHandle = HandleFormatter.normalizedHandle(from: rawDisplayName)
+            let sanitizedHandle = normalizedHandle.hasPrefix("@")
+                ? String(normalizedHandle.dropFirst())
+                : normalizedHandle
+
+            var payload: [String: Any] = [:]
+
+            if ((existingData["displayName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+                payload["displayName"] = rawDisplayName
+            }
+
+            if ((existingData["handle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+                payload["handle"] = sanitizedHandle
+            }
+
+            if existingData["notificationSettings"] == nil {
+                payload["notificationSettings"] = [
+                    "likes": true,
+                    "comments": true,
+                    "friendRequests": true,
+                    "friendPosts": true,
+                    "mutedUserIDs": []
+                ]
+            }
+
+            if existingData["privacySettings"] == nil {
+                payload["privacySettings"] = [
+                    "isPrivateAccount": false,
+                    "allowContactDiscovery": true
+                ]
+            }
+
+            if existingData["followerCount"] == nil {
+                payload["followerCount"] = 0
+            }
+
+            if existingData["followingCount"] == nil {
+                payload["followingCount"] = 0
+            }
+
+            if existingData["topFoods"] == nil {
+                payload["topFoods"] = []
+            }
+
+            if existingData["healthMetrics"] == nil {
+                payload["healthMetrics"] = [:]
+            }
+
+            if existingData["bio"] == nil {
+                payload["bio"] = ""
+            }
+
+            if existingData["profileImageURL"] == nil, let url = user.photoURL?.absoluteString {
+                payload["profileImageURL"] = url
+            }
+
+            if existingData["phoneNumber"] == nil, let phone = user.phoneNumber, !phone.isEmpty {
+                payload["phoneNumber"] = phone
+            }
+
+            if existingData["friendIDs"] == nil {
+                payload["friendIDs"] = []
+            }
+
+            if existingData["pendingFriendRequestIDs"] == nil {
+                payload["pendingFriendRequestIDs"] = []
+            }
+
+            if payload.isEmpty {
+                SavedService.shared.ensureDefaultCollection(for: user.uid)
+                completion?(nil)
+                return
+            }
+
+            userRef.setData(payload, merge: true) { error in
+                if error == nil {
+                    SavedService.shared.ensureDefaultCollection(for: user.uid)
+                }
+                completion?(error)
+            }
+        }
+    }
 
     func searchUsers(matching query: String,
                      limit: Int = 20,
@@ -24,6 +127,14 @@ final class UserService: ObservableObject {
             return
         }
 
+        let normalizedQuery: String
+        if trimmed.hasPrefix("@") {
+            let stripped = String(trimmed.drop(while: { $0 == "@" }))
+            normalizedQuery = stripped.isEmpty ? trimmed : stripped
+        } else {
+            normalizedQuery = trimmed
+        }
+
         db.collection("users")
             .limit(to: max(limit * 3, 25))
             .getDocuments { snapshot, error in
@@ -32,7 +143,7 @@ final class UserService: ObservableObject {
                     return
                 }
 
-                let lowercasedQuery = trimmed.lowercased()
+                let lowercasedQuery = normalizedQuery.lowercased()
                 let users: [AppUser] = documents.compactMap { try? $0.data(as: AppUser.self) }
                     .sorted { ($0.displayName.lowercased(), $0.handle.lowercased()) < ($1.displayName.lowercased(), $1.handle.lowercased()) }
                     .filter { user in
