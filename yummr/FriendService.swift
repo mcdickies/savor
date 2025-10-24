@@ -1,6 +1,5 @@
 import Foundation
 import FirebaseFirestore
-import FirebaseFirestoreSwift
 import FirebaseAuth
 
 final class FriendService: ObservableObject {
@@ -16,6 +15,21 @@ final class FriendService: ObservableObject {
             .addSnapshotListener { snapshot, _ in
                 let ids = snapshot?.documents.compactMap { $0.documentID } ?? []
                 listener(ids)
+            }
+    }
+
+    func fetchFriendIDs(for uid: String, completion: @escaping (Result<[String], Error>) -> Void) {
+        db.collection("users")
+            .document(uid)
+            .collection("friends")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+
+                let ids = snapshot?.documents.compactMap { $0.documentID } ?? []
+                completion(.success(ids))
             }
     }
 
@@ -83,7 +97,12 @@ final class FriendService: ObservableObject {
             .document(requesterUID)
         batch.deleteDocument(requestRef)
 
-        batch.commit(completion: completion)
+        batch.commit { error in
+            if error == nil {
+                self.incrementFriendCounts(for: [currentUID, requesterUID], delta: 1)
+            }
+            completion?(error)
+        }
     }
 
     func removeFriend(_ friendUID: String, completion: ((Error?) -> Void)? = nil) {
@@ -99,6 +118,24 @@ final class FriendService: ObservableObject {
             .collection("friends").document(currentUID)
         batch.deleteDocument(currentRef)
         batch.deleteDocument(otherRef)
-        batch.commit(completion: completion)
+        batch.commit { error in
+            if error == nil {
+                self.incrementFriendCounts(for: [currentUID, friendUID], delta: -1)
+            }
+            completion?(error)
+        }
+    }
+
+    private func incrementFriendCounts(for uids: [String], delta: Int64) {
+        guard delta != 0 else { return }
+        let batch = db.batch()
+        uids.forEach { uid in
+            let userRef = db.collection("users").document(uid)
+            batch.setData([
+                "followerCount": FieldValue.increment(delta),
+                "followingCount": FieldValue.increment(delta)
+            ], forDocument: userRef, merge: true)
+        }
+        batch.commit(completion: nil)
     }
 }

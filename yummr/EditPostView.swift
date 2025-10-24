@@ -9,6 +9,8 @@ struct EditPostView: View {
     @State private var ingredients: [String]
     @State private var instructions: [String]
     @State private var aiNotes: String
+    @State private var starRating: Double
+    @State private var isFavorite: Bool
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -18,6 +20,8 @@ struct EditPostView: View {
         _ingredients = State(initialValue: post.wrappedValue.ingredientList)
         _instructions = State(initialValue: post.wrappedValue.instructionsList)
         _aiNotes = State(initialValue: post.wrappedValue.extraFields?["aiNotes"] ?? "")
+        _starRating = State(initialValue: min(max(post.wrappedValue.starRating ?? 0, 0), 5))
+        _isFavorite = State(initialValue: post.wrappedValue.isFavorited)
     }
 
     var body: some View {
@@ -64,6 +68,23 @@ struct EditPostView: View {
                     TextField("Optional notes", text: $aiNotes, axis: .vertical)
                 }
 
+                Section("Rating & Favorites") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            Slider(value: $starRating, in: 0...5, step: 0.5) {
+                                Text("Star rating")
+                            }
+                            Text(String(format: "%.1f ★", starRating))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(width: 72, alignment: .trailing)
+                                .accessibilityHidden(true)
+                        }
+
+                        Toggle("Mark as favorite", isOn: $isFavorite)
+                    }
+                }
+
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
@@ -102,6 +123,22 @@ struct EditPostView: View {
         var extras = post.extraFields ?? [:]
         extras["ingredients"] = ingredients.joined(separator: "\n")
         extras["aiNotes"] = aiNotes
+
+        let roundedRating = (starRating * 10).rounded() / 10
+        if roundedRating > 0 {
+            extras["starRating"] = String(format: "%.1f", roundedRating)
+        } else {
+            extras.removeValue(forKey: "starRating")
+            extras.removeValue(forKey: "rating")
+            extras.removeValue(forKey: "stars")
+        }
+
+        if isFavorite {
+            extras["isFavorite"] = "true"
+        } else {
+            extras.removeValue(forKey: "isFavorite")
+            extras.removeValue(forKey: "favorite")
+        }
 
         PostService.shared.updatePost(postID: postID,
                                       title: post.title,

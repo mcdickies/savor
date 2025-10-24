@@ -7,12 +7,123 @@
 
 
 import Foundation
+import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+
 
 final class UserService: ObservableObject {
     static let shared = UserService()
     private let db = Firestore.firestore()
+
+    func ensureUserDocument(for user: User,
+                             displayName overrideDisplayName: String? = nil,
+                             completion: ((Error?) -> Void)? = nil) {
+        let userRef = db.collection("users").document(user.uid)
+
+        userRef.getDocument { snapshot, error in
+            if let error = error {
+                completion?(error)
+                return
+            }
+
+            let existingData = snapshot?.data() ?? [:]
+
+            let trimmedOverride = overrideDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let overrideName = (trimmedOverride?.isEmpty ?? true) ? nil : trimmedOverride
+            let resolvedDisplayName: String
+            if let overrideName = overrideName {
+                resolvedDisplayName = overrideName
+            } else if let name = user.displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                resolvedDisplayName = name
+            } else if let email = user.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
+                resolvedDisplayName = email
+            } else {
+                resolvedDisplayName = "New Chef"
+            }
+
+            let normalizedHandle = HandleFormatter.normalizedHandle(from: resolvedDisplayName)
+            let strippedHandle = String(normalizedHandle.drop(while: { $0 == "@" }))
+            let storedHandle = strippedHandle.isEmpty ? normalizedHandle : strippedHandle
+
+            var payload: [String: Any] = [:]
+
+            let existingDisplayName = (existingData["displayName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if existingDisplayName?.isEmpty ?? true {
+                payload["displayName"] = resolvedDisplayName
+            }
+
+            let existingHandle = (existingData["handle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if existingHandle?.isEmpty ?? true {
+                payload["handle"] = storedHandle
+            }
+
+            if existingData["notificationSettings"] == nil {
+                payload["notificationSettings"] = [
+                    "likes": true,
+                    "comments": true,
+                    "friendRequests": true,
+                    "friendPosts": true,
+                    "mutedUserIDs": []
+                ]
+            }
+
+            if existingData["privacySettings"] == nil {
+                payload["privacySettings"] = [
+                    "isPrivateAccount": false,
+                    "allowContactDiscovery": true
+                ]
+            }
+
+            if existingData["followerCount"] == nil {
+                payload["followerCount"] = 0
+            }
+
+            if existingData["followingCount"] == nil {
+                payload["followingCount"] = 0
+            }
+
+            if existingData["topFoods"] == nil {
+                payload["topFoods"] = []
+            }
+
+            if existingData["healthMetrics"] == nil {
+                payload["healthMetrics"] = [:]
+            }
+
+            if existingData["bio"] == nil {
+                payload["bio"] = ""
+            }
+
+            if existingData["profileImageURL"] == nil, let url = user.photoURL?.absoluteString, !url.isEmpty {
+                payload["profileImageURL"] = url
+            }
+
+            if existingData["phoneNumber"] == nil, let phone = user.phoneNumber, !phone.isEmpty {
+                payload["phoneNumber"] = phone
+            }
+
+            if existingData["friendIDs"] == nil {
+                payload["friendIDs"] = []
+            }
+
+            if existingData["pendingFriendRequestIDs"] == nil {
+                payload["pendingFriendRequestIDs"] = []
+            }
+
+            if payload.isEmpty {
+                SavedService.shared.ensureDefaultCollection(for: user.uid)
+                completion?(nil)
+                return
+            }
+
+            userRef.setData(payload, merge: true) { error in
+                if error == nil {
+                    SavedService.shared.ensureDefaultCollection(for: user.uid)
+                }
+                completion?(error)
+            }
+        }
+    }
 
     func searchUsers(matching query: String,
                      limit: Int = 20,
@@ -24,6 +135,14 @@ final class UserService: ObservableObject {
             return
         }
 
+        let normalizedQuery: String
+        if trimmed.hasPrefix("@") {
+            let stripped = String(trimmed.drop(while: { $0 == "@" }))
+            normalizedQuery = stripped.isEmpty ? trimmed : stripped
+        } else {
+            normalizedQuery = trimmed
+        }
+
         db.collection("users")
             .limit(to: max(limit * 3, 25))
             .getDocuments { snapshot, error in
@@ -32,7 +151,8 @@ final class UserService: ObservableObject {
                     return
                 }
 
-                let lowercasedQuery = trimmed.lowercased()
+     
+                let lowercasedQuery = normalizedQuery.lowercased()
                 let users: [AppUser] = documents.compactMap { try? $0.data(as: AppUser.self) }
                     .sorted { ($0.displayName.lowercased(), $0.handle.lowercased()) < ($1.displayName.lowercased(), $1.handle.lowercased()) }
                     .filter { user in
@@ -58,7 +178,6 @@ final class UserService: ObservableObject {
                 completion(Array(users.prefix(limit)))
             }
     }
-
     func fetchUsers(withIDs ids: [String], completion: @escaping ([AppUser]) -> Void) {
         guard !ids.isEmpty else {
             completion([])

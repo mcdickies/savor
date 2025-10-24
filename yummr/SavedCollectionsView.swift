@@ -1,6 +1,5 @@
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestoreSwift
 
 struct SavedCollectionsView: View {
     @EnvironmentObject var auth: AuthService
