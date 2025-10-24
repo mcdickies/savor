@@ -116,7 +116,7 @@ final class AIRecipeService {
     }
 
     private let session: URLSession
-    private let modelName = "gemini-1.5-flash"
+    private let modelName = "gemini-2.5-flash"
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta/models"
 
     init(session: URLSession = .shared) {

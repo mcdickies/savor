@@ -7,7 +7,6 @@
 
 import SwiftUI
 import FirebaseFirestore
-import FirebaseFirestoreSwift
 
 struct FeedView: View {
     @EnvironmentObject var auth: AuthService

@@ -1,7 +1,6 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseFirestoreSwift
 
 struct PostCard: View {
     var post: Post
@@ -368,7 +367,7 @@ struct PostCard: View {
     }
 
     private var primaryAuthorName: String {
-        if let displayName = author?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !displayName.isEmpty {
+        if let displayName = author?.displayName.trimmingCharacters(in: .whitespacesAndNewlines), !displayName.isEmpty {
             return displayName
         }
         let trimmedPostName = post.authorName.trimmingCharacters(in: .whitespacesAndNewlines)
