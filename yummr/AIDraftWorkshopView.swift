@@ -310,15 +310,6 @@ struct AIDraftWorkshopView: View {
 
     @MainActor
     private func applyAIDraft(_ draft: AIRecipeDraft) {
-        if let newTitle = draft.title?.trimmingCharacters(in: .whitespacesAndNewlines), !newTitle.isEmpty {
-            title = newTitle
-        }
-
-        let summarySource = draft.summary ?? draft.description
-        if let newSummary = summarySource?.trimmingCharacters(in: .whitespacesAndNewlines), !newSummary.isEmpty {
-            description = newSummary
-        }
-
         if let newIngredients = draft.ingredients?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }),
            !newIngredients.isEmpty {
             ingredients = newIngredients

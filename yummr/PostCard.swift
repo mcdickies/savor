@@ -15,6 +15,8 @@ struct PostCard: View {
     @State private var previewComments: [Comment] = []
     @State private var isSaved = false
     @State private var author: AppUser?
+    @State private var isShareSheetPresented = false
+    @State private var shareItems: [Any] = []
 
     init(post: Post) {
         self.post = post
@@ -23,17 +25,10 @@ struct PostCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             header
 
             titleRow
-
-            if let caption = captionText {
-                Text(caption)
-                    .appTextStyle(.body)
-                    .foregroundColor(Color(.secondaryLabel))
-                    .lineSpacing(2)
-            }
 
             tabbedImages
 
@@ -56,7 +51,8 @@ struct PostCard: View {
                 commentPreview
             }
         }
-        .padding(16)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
@@ -71,6 +67,9 @@ struct PostCard: View {
             checkSaveState()
             fetchAuthor()
         }
+        .sheet(isPresented: $isShareSheetPresented) {
+            ShareSheet(activityItems: shareItems)
+        }
         .sheet(isPresented: $showAllComments, onDismiss: {
             fetchCommentsPreview()
         }) {
@@ -79,16 +78,16 @@ struct PostCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             NavigationLink(destination: ProfileView(userID: post.authorID)) {
                 avatarView
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 NavigationLink(destination: ProfileView(userID: post.authorID)) {
                     Text(primaryAuthorName)
-                        .appTextStyle(.body, weight: .semibold)
+                        .appTextStyle(.callout, weight: .semibold)
                         .foregroundColor(.primary)
                         .lineLimit(1)
                 }
@@ -104,7 +103,7 @@ struct PostCard: View {
 
             Menu {
                 Button("Share") {
-                    // TODO: share implementation
+                    prepareShareSheet()
                 }
                 Button("Report", role: .destructive) {
                     // TODO: report implementation
@@ -120,22 +119,26 @@ struct PostCard: View {
     }
 
     private var titleRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text(post.title)
-                .appTextStyle(.title3, weight: .semibold)
-                .foregroundColor(.primary)
-                .multilineTextAlignment(.leading)
-                .lineLimit(2)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(post.title)
+                    .appTextStyle(.headline, weight: .semibold)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
 
-            if let rating = post.starRating {
-                StarRatingView(rating: rating)
+                Spacer()
+
+                if let rating = post.starRating {
+                    StarRatingView(rating: rating)
+                }
             }
 
-            if post.isFavorited {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.yellow)
-                    .font(.caption)
-                    .accessibilityLabel("Favorited")
+            if let caption = captionText {
+                Text(caption)
+                    .appTextStyle(.subheadline)
+                    .foregroundColor(Color(.secondaryLabel))
+                    .lineLimit(2)
             }
         }
     }
@@ -258,14 +261,24 @@ struct PostCard: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.horizontal, -16)
                 .padding(.bottom, 4)
                 .tag(item.offset)
             }
         }
         .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
         .frame(maxWidth: .infinity)
-        .aspectRatio(4.0 / 5.0, contentMode: .fit)
+        .aspectRatio(1.0, contentMode: .fit)
+        .overlay(alignment: .topTrailing) {
+            if post.isFavorited {
+                Image(systemName: "bookmark.circle.fill")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundColor(.yellow)
+                    .padding(.trailing, 4)
+                    .padding(.top, 4)
+            }
+        }
     }
 
     private func tagOverlay(tag: Post.PhotoTag, geometry: GeometryProxy) -> some View {
@@ -364,6 +377,19 @@ struct PostCard: View {
                 self.author = user
             }
         }
+    }
+
+    private func prepareShareSheet() {
+        var items: [Any] = [post.title]
+        let trimmedDescription = post.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDescription.isEmpty {
+            items.append(trimmedDescription)
+        }
+        if let urlString = post.imageURLs.first, let url = URL(string: urlString) {
+            items.append(url)
+        }
+        shareItems = items
+        isShareSheetPresented = !items.isEmpty
     }
 
     private var primaryAuthorName: String {

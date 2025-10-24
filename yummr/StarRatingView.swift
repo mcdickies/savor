@@ -4,14 +4,14 @@ struct StarRatingView: View {
     let rating: Double
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             ForEach(0..<5, id: \.self) { index in
                 Image(systemName: symbol(for: index))
                     .foregroundColor(.yellow)
-                    .font(.caption2)
+                    .font(.system(size: 14, weight: .semibold))
             }
             Text(String(format: "%.1f", rating))
-                .appTextStyle(.caption2, weight: .semibold)
+                .appTextStyle(.footnote, weight: .semibold)
                 .foregroundColor(.secondary)
         }
         .accessibilityElement(children: .ignore)

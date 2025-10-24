@@ -197,7 +197,22 @@ struct SearchView: View {
                 HStack(spacing: 16) {
                     ForEach(contactSuggestions, id: \.handle) { user in
                         VStack(spacing: 8) {
-                            NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
+                            if let id = user.id, !id.isEmpty {
+                                NavigationLink(destination: ProfileView(userID: id)) {
+                                    VStack {
+                                        CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                                            Circle().fill(Color.gray.opacity(0.3))
+                                                .frame(width: 64, height: 64)
+                                        }
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 64, height: 64)
+                                        .clipShape(Circle())
+
+                                        Text(user.displayName)
+                                            .font(.caption)
+                                    }
+                                }
+                            } else {
                                 VStack {
                                     CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
                                         Circle().fill(Color.gray.opacity(0.3))
@@ -210,6 +225,7 @@ struct SearchView: View {
                                     Text(user.displayName)
                                         .font(.caption)
                                 }
+                                .opacity(0.6)
                             }
                             friendActionButton(for: user)
                                 .font(.caption)
