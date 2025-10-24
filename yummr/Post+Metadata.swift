@@ -1,6 +1,19 @@
 import Foundation
 
 extension Post {
+    /// Returns a stable identifier for the post even when the Firestore document ID is unavailable.
+    var stableIdentifier: String {
+        if let id = id, !id.isEmpty {
+            return id
+        }
+
+        let sanitizedTitle = title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+        let timestampComponent = String(Int(timestamp.timeIntervalSince1970 * 1000))
+        return "\(sanitizedTitle)-\(timestampComponent)"
+    }
+
     var starRating: Double? {
         parseDouble(forKeys: ["rating", "starRating", "stars"])
     }

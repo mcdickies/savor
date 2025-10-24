@@ -34,7 +34,7 @@ struct ProfileView: View {
     @State private var activeFriendList: FriendListView.Mode?
     @State private var isFollowingProfile = false
     @State private var isProcessingFollowAction = false
-    @State private var selectedPostForFeed: Post?
+    @State private var selectedPostID: String?
     @State private var isShowingUserFeed = false
 
     private let db = Firestore.firestore()
@@ -318,7 +318,7 @@ struct ProfileView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 3), spacing: 1) {
                 ForEach(currentPosts) { post in
                     Button {
-                        selectedPostForFeed = post
+                        selectedPostID = post.stableIdentifier
                         isShowingUserFeed = true
                     } label: {
                         GeometryReader { geometry in
@@ -399,13 +399,13 @@ struct ProfileView: View {
                 destination: UserPostsFeedView(
                     authorID: userID,
                     authorName: profileUser?.displayName,
-                    initialPostID: selectedPostForFeed?.id
+                    initialPostID: selectedPostID
                 ),
                 isActive: Binding(
                     get: { isShowingUserFeed },
                     set: { newValue in
                         if !newValue {
-                            selectedPostForFeed = nil
+                            selectedPostID = nil
                         }
                         isShowingUserFeed = newValue
                     }

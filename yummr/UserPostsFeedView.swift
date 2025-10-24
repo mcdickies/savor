@@ -27,12 +27,12 @@ struct UserPostsFeedView: View {
                 } else {
                     LazyVStack(spacing: 24) {
                         ForEach(posts) { post in
-                            let fallbackID = post.id ?? "\(post.title)-\(post.timestamp.timeIntervalSince1970)"
+                            let identifier = post.stableIdentifier
                             NavigationLink(destination: PostDetailView(post: post)) {
                                 PostCard(post: post)
                             }
                             .buttonStyle(.plain)
-                            .id(fallbackID)
+                            .id(identifier)
                         }
                     }
                     .padding()
@@ -41,7 +41,7 @@ struct UserPostsFeedView: View {
             .onChange(of: posts) { _ in
                 guard !hasScrolledToInitialPost,
                       let targetID = initialPostID,
-                      posts.contains(where: { $0.id == targetID }) else { return }
+                      posts.contains(where: { $0.stableIdentifier == targetID }) else { return }
                 withAnimation {
                     proxy.scrollTo(targetID, anchor: .top)
                 }
