@@ -126,6 +126,68 @@ final class FriendService: ObservableObject {
         }
     }
 
+    func createFriendship(with targetUID: String, completion: ((Error?) -> Void)? = nil) {
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            completion?(NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not signed in"]))
+            return
+        }
+
+        guard currentUID != targetUID else {
+            completion?(nil)
+            return
+        }
+
+        let friendData = [
+            "createdAt": FieldValue.serverTimestamp()
+        ]
+
+        let batch = db.batch()
+        let currentFriendRef = db.collection("users").document(currentUID)
+            .collection("friends").document(targetUID)
+        let targetFriendRef = db.collection("users").document(targetUID)
+            .collection("friends").document(currentUID)
+
+        batch.setData(friendData, forDocument: currentFriendRef, merge: true)
+        batch.setData(friendData, forDocument: targetFriendRef, merge: true)
+
+        batch.commit { error in
+            if error == nil {
+                self.incrementFriendCounts(for: [currentUID, targetUID], delta: 1)
+            }
+            completion?(error)
+        }
+    }
+
+    func isFriends(with targetUID: String, completion: @escaping (Bool) -> Void) {
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            completion(false)
+            return
+        }
+
+        db.collection("users")
+            .document(currentUID)
+            .collection("friends")
+            .document(targetUID)
+            .getDocument { snapshot, _ in
+                completion(snapshot?.exists ?? false)
+            }
+    }
+
+    func hasPendingRequest(to targetUID: String, completion: @escaping (Bool) -> Void) {
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            completion(false)
+            return
+        }
+
+        db.collection("users")
+            .document(targetUID)
+            .collection("friendRequests")
+            .document(currentUID)
+            .getDocument { snapshot, _ in
+                completion(snapshot?.exists ?? false)
+            }
+    }
+
     private func incrementFriendCounts(for uids: [String], delta: Int64) {
         guard delta != 0 else { return }
         let batch = db.batch()

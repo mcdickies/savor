@@ -5,33 +5,52 @@ import FirebaseFirestore
 struct UserPostsFeedView: View {
     let authorID: String
     var authorName: String?
+    var initialPostID: String? = nil
 
     @State private var posts: [Post] = []
     @State private var isLoading = true
     @State private var listener: ListenerRegistration?
+    @State private var hasScrolledToInitialPost = false
 
     private let db = Firestore.firestore()
 
     var body: some View {
-        ScrollView {
-            if isLoading {
-                ProgressView()
-                    .padding()
-            } else if posts.isEmpty {
-                Text("No posts yet.")
-                    .foregroundColor(.secondary)
-                    .padding()
-            } else {
-                LazyVStack(spacing: 24) {
-                    ForEach(posts) { post in
-                        PostCard(post: post)
+        ScrollViewReader { proxy in
+            ScrollView {
+                if isLoading {
+                    ProgressView()
+                        .padding()
+                } else if posts.isEmpty {
+                    Text("No posts yet.")
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    LazyVStack(spacing: 24) {
+                        ForEach(posts) { post in
+                            let fallbackID = post.id ?? "\(post.title)-\(post.timestamp.timeIntervalSince1970)"
+                            NavigationLink(destination: PostDetailView(post: post)) {
+                                PostCard(post: post)
+                            }
+                            .buttonStyle(.plain)
+                            .id(fallbackID)
+                        }
                     }
+                    .padding()
                 }
-                .padding()
+            }
+            .onChange(of: posts) { _ in
+                guard !hasScrolledToInitialPost,
+                      let targetID = initialPostID,
+                      posts.contains(where: { $0.id == targetID }) else { return }
+                withAnimation {
+                    proxy.scrollTo(targetID, anchor: .top)
+                }
+                hasScrolledToInitialPost = true
             }
         }
         .navigationTitle(title)
         .onAppear {
+            hasScrolledToInitialPost = false
             startListeningForPosts()
         }
         .onDisappear {

@@ -32,6 +32,10 @@ struct ProfileView: View {
     @State private var followerCount: Int = 0
     @State private var followingCount: Int = 0
     @State private var activeFriendList: FriendListView.Mode?
+    @State private var isFollowingProfile = false
+    @State private var isProcessingFollowAction = false
+    @State private var selectedPostForFeed: Post?
+    @State private var isShowingUserFeed = false
 
     private let db = Firestore.firestore()
     @State private var friendListener: ListenerRegistration?
@@ -75,6 +79,10 @@ struct ProfileView: View {
                         .padding(.horizontal)
                     }
 
+                    if selectedTab == .posts && !pinnedFavoritePosts.isEmpty {
+                        favoriteRecipesSection
+                    }
+
                     Picker("Profile Content", selection: $selectedTab) {
                         ForEach(ProfileTab.allCases) { tab in
                             Text(tab.rawValue).tag(tab)
@@ -83,21 +91,7 @@ struct ProfileView: View {
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach(currentPosts) { post in
-                            NavigationLink(destination: PostDetailView(post: post)) {
-                                CachedWebImage(url: URL(string: post.imageURLs.first ?? "")) {
-                                    ProgressView()
-                                }
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 140)
-                                .clipped()
-                                .cornerRadius(12)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal)
+                    profilePostGrid
                 }
                 .padding(.bottom, 24)
             }
@@ -120,8 +114,15 @@ struct ProfileView: View {
             loadPosts()
             loadTaggedPosts()
             startFriendListener()
+            refreshFriendshipState()
         }
         .onDisappear(perform: stopFriendListener)
+        .onChange(of: userID) { _ in
+            loadProfileData()
+            loadPosts()
+            loadTaggedPosts()
+            refreshFriendshipState()
+        }
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(image: $selectedProfileImage)
                 .onDisappear { uploadProfileImage() }
@@ -159,6 +160,10 @@ struct ProfileView: View {
         case .posts: return userPosts
         case .tagged: return taggedPosts
         }
+    }
+
+    private var pinnedFavoritePosts: [Post] {
+        userPosts.filter { $0.isFavorited }
     }
 
     private var bannerSection: some View {
@@ -254,6 +259,8 @@ struct ProfileView: View {
                 if isCurrentUser {
                     Button("Edit Bio") { isEditingBio = true }
                         .font(.caption)
+                } else {
+                    followActionButton
                 }
             }
         }
@@ -305,6 +312,112 @@ struct ProfileView: View {
         .padding()
     }
 
+    private var profilePostGrid: some View {
+        ZStack {
+            Color.white
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 3), spacing: 1) {
+                ForEach(currentPosts) { post in
+                    Button {
+                        selectedPostForFeed = post
+                        isShowingUserFeed = true
+                    } label: {
+                        GeometryReader { geometry in
+                            CachedWebImage(url: URL(string: post.imageURLs.first ?? "")) {
+                                Color.gray.opacity(0.2)
+                            }
+                            .scaledToFill()
+                            .frame(width: geometry.size.width, height: geometry.size.width)
+                            .clipped()
+                        }
+                        .aspectRatio(1, contentMode: .fit)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            userFeedNavigationLink
+                .hidden()
+        }
+        .padding(.horizontal, 1)
+    }
+
+    private var favoriteRecipesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Favorite Recipes")
+                    .font(.headline)
+                Spacer()
+                Text("Pinned")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(pinnedFavoritePosts) { post in
+                        NavigationLink(destination: PostDetailView(post: post)) {
+                            CachedWebImage(url: URL(string: post.imageURLs.first ?? "")) {
+                                Color.gray.opacity(0.2)
+                            }
+                            .frame(width: 140, height: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private var followActionButton: some View {
+        Button {
+            guard !isProcessingFollowAction else { return }
+            if isFollowingProfile {
+                unfollowProfile()
+            } else {
+                followProfile()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isFollowingProfile ? "person.crop.circle.badge.minus" : "person.crop.circle.badge.plus")
+                Text(isFollowingProfile ? "Unfollow" : "Follow")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(isProcessingFollowAction || resolvedUserID == nil)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private var userFeedNavigationLink: some View {
+        if let userID = resolvedUserID {
+            NavigationLink(
+                destination: UserPostsFeedView(
+                    authorID: userID,
+                    authorName: profileUser?.displayName,
+                    initialPostID: selectedPostForFeed?.id
+                ),
+                isActive: Binding(
+                    get: { isShowingUserFeed },
+                    set: { newValue in
+                        if !newValue {
+                            selectedPostForFeed = nil
+                        }
+                        isShowingUserFeed = newValue
+                    }
+                )
+            ) {
+                EmptyView()
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
     private func loadProfileData() {
         guard let uid = resolvedUserID else { return }
         db.collection("users").document(uid).getDocument { snapshot, _ in
@@ -344,6 +457,15 @@ struct ProfileView: View {
         PostService.shared.fetchTaggedPosts(for: uid) { posts in
             DispatchQueue.main.async {
                 self.taggedPosts = posts.sorted { $0.timestamp > $1.timestamp }
+            }
+        }
+    }
+
+    private func refreshFriendshipState() {
+        guard !isCurrentUser, let uid = resolvedUserID else { return }
+        FriendService.shared.isFriends(with: uid) { isFriend in
+            DispatchQueue.main.async {
+                self.isFollowingProfile = isFriend
             }
         }
     }
@@ -410,6 +532,34 @@ struct ProfileView: View {
     private func stopFriendListener() {
         friendListener?.remove()
         friendListener = nil
+    }
+
+    private func followProfile() {
+        guard let uid = resolvedUserID else { return }
+        isProcessingFollowAction = true
+        FriendService.shared.createFriendship(with: uid) { error in
+            DispatchQueue.main.async {
+                self.isProcessingFollowAction = false
+                if error == nil {
+                    self.isFollowingProfile = true
+                    self.loadProfileData()
+                }
+            }
+        }
+    }
+
+    private func unfollowProfile() {
+        guard let uid = resolvedUserID else { return }
+        isProcessingFollowAction = true
+        FriendService.shared.removeFriend(uid) { error in
+            DispatchQueue.main.async {
+                self.isProcessingFollowAction = false
+                if error == nil {
+                    self.isFollowingProfile = false
+                    self.loadProfileData()
+                }
+            }
+        }
     }
 }
 

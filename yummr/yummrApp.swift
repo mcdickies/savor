@@ -6,9 +6,12 @@
 //
 import SwiftUI
 import FirebaseCore
+import UIKit
 
 @main
 struct YummrApp: App {
+    @UIApplicationDelegateAdaptor(OrientationAppDelegate.self) private var orientationDelegate
+
     init() {
         Self.configureFirebaseIfNeeded()
     }
@@ -72,4 +75,10 @@ private struct AppRootView: View {
 enum FirebaseBootstrapState {
     static var resolvedBundleMismatch = false
     static var warning: String?
+}
+
+final class OrientationAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        .portrait
+    }
 }
