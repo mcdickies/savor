@@ -58,7 +58,6 @@ struct ProfileView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    bannerSection
                     profileSummaryCard
                     if let topFoods = profileUser?.topFoods, !topFoods.isEmpty {
                         TagSection(title: "Top Foods", tags: topFoods)
@@ -318,8 +317,6 @@ struct ProfileView: View {
                 .fill(Color(UIColor.secondarySystemBackground))
         )
         .padding(.horizontal)
-        .offset(y: -36)
-        .padding(.bottom, -36)
     }
 
     private var profilePostGrid: some View {

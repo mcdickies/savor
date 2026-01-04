@@ -50,7 +50,6 @@ struct CreatePostView: View {
     @State private var aiReferenceImages: [UIImage] = []
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var uploadProgress: [Double] = []
-    @State private var editMode: EditMode = .inactive
     @State private var isUploading = false
     @State private var uploadSuccess = false
     @State private var errorMessage: String?
@@ -72,6 +71,43 @@ struct CreatePostView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
+                    Group {
+                        TextField("Title", text: $title)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        TextField("Description", text: $description, axis: .vertical)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        photoActionButtons
+
+                        TextField("Cook time (e.g. 45 minutes)", text: $cookTime)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+
+                    ingredientsSection
+
+                    TextField("Calories (estimated)", text: $calorieEstimate)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recipe Instructions")
+                            .font(.headline)
+                        ZStack(alignment: .topLeading) {
+                            if recipe.characters.isEmpty {
+                                Text("Write step-by-step instructions...")
+                                    .foregroundColor(.secondary)
+                                    .padding(EdgeInsets(top: 8, leading: 4, bottom: 0, trailing: 0))
+                            }
+                            RichTextEditor(text: $recipe)
+                                .frame(minHeight: 120)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3))
+                                )
+                        }
+                    }
+
                     NavigationLink {
                         AIDraftWorkshopView(
                             title: $title,
@@ -86,7 +122,7 @@ struct CreatePostView: View {
                             aiNotes: $aiNotes
                         )
                     } label: {
-                        Label("AI Draft", systemImage: "wand.and.stars")
+                        Label("Draft with AI", systemImage: "wand.and.stars")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -96,43 +132,7 @@ struct CreatePostView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Group {
-                        TextField("Title", text: $title)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Description", text: $description, axis: .vertical)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Recipe Instructions")
-                                .font(.headline)
-                            ZStack(alignment: .topLeading) {
-                                if recipe.characters.isEmpty {
-                                    Text("Write step-by-step instructions...")
-                                        .foregroundColor(.secondary)
-                                        .padding(EdgeInsets(top: 8, leading: 4, bottom: 0, trailing: 0))
-                                }
-                                RichTextEditor(text: $recipe)
-                                    .frame(minHeight: 120)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.gray.opacity(0.3))
-                                    )
-                            }
-                        }
-
-                        TextField("Cook time (e.g. 45 minutes)", text: $cookTime)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Calories (estimated)", text: $calorieEstimate)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        ratingSection
-                    }
-
-                    ingredientsSection
-                    mediaSelectionSection
+                    ratingSection
                     taggingSection
 
                     Button("Post") {
@@ -175,7 +175,6 @@ struct CreatePostView: View {
                 .padding()
             }
             .navigationTitle("Create Post")
-            .toolbar { EditButton() }
         }
         .sheet(isPresented: $showCameraPicker) {
             ImagePicker(image: $capturedImage, sourceType: .camera)
@@ -187,13 +186,15 @@ struct CreatePostView: View {
         }
         .onChange(of: selectedPhotos) { items in
             Task {
-                selectedImages = []
+                var newImages = selectedImages
                 for item in items {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let uiImage = UIImage(data: data) {
-                        selectedImages.append(uiImage)
+                        newImages.append(uiImage)
                     }
                 }
+                selectedImages = newImages
+                selectedPhotos = []
             }
         }
         .onChange(of: capturedImage) { image in
@@ -268,21 +269,30 @@ struct CreatePostView: View {
         }
     }
 
-    private var mediaSelectionSection: some View {
+    private var photoActionButtons: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Photos")
+            Text("Add Photos")
                 .font(.headline)
 
-            HStack {
+            HStack(spacing: 12) {
                 PhotosPicker(
                     selection: $selectedPhotos,
                     maxSelectionCount: 5,
                     matching: .images,
                     photoLibrary: .shared()
                 ) {
-                    Text("Select Images")
-                        .foregroundColor(.blue)
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 28, weight: .semibold))
+                        Text("Gallery")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(16)
                 }
+                .buttonStyle(.plain)
 
                 Button {
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -291,33 +301,45 @@ struct CreatePostView: View {
                         cameraUnavailableAlert = true
                     }
                 } label: {
-                    Label("Capture Photo", systemImage: "camera")
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 28, weight: .semibold))
+                        Text("Camera")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(16)
                 }
+                .buttonStyle(.plain)
             }
 
             if !selectedImages.isEmpty {
-                List {
-                    ForEach(selectedImages.indices, id: \.self) { index in
-                        VStack {
-                            Image(uiImage: selectedImages[index])
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 200)
-                                .cornerRadius(10)
-                            if isUploading && uploadProgress.indices.contains(index) {
-                                ProgressView(value: uploadProgress[index])
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(selectedImages.indices, id: \.self) { index in
+                            ZStack(alignment: .topTrailing) {
+                                Image(uiImage: selectedImages[index])
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 160, height: 160)
+                                    .clipped()
+                                    .cornerRadius(12)
+
+                                Button {
+                                    selectedImages.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.white)
+                                        .background(Color.black.opacity(0.6).clipShape(Circle()))
+                                }
+                                .padding(6)
                             }
                         }
                     }
-                    .onDelete { offsets in
-                        selectedImages.remove(atOffsets: offsets)
-                    }
-                    .onMove { indices, newOffset in
-                        selectedImages.move(fromOffsets: indices, toOffset: newOffset)
-                    }
+                    .padding(.vertical, 4)
                 }
-                .frame(height: 250)
-                .environment(\.editMode, $editMode)
             }
         }
     }

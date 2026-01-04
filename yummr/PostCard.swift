@@ -25,7 +25,7 @@ struct PostCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             header
 
             titleRow
@@ -51,8 +51,8 @@ struct PostCard: View {
                 commentPreview
             }
         }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
@@ -245,7 +245,7 @@ struct PostCard: View {
     private var imageCarousel: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let height = width * 1.05
+            let height = width * 0.8
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(Array(post.imageURLs.enumerated()), id: \.offset) { item in
@@ -268,7 +268,7 @@ struct PostCard: View {
                 }
             }
         }
-        .frame(height: UIScreen.main.bounds.width * 1.05)
+        .frame(height: UIScreen.main.bounds.width * 0.8)
         .overlay(alignment: .topTrailing) {
             if post.isFavorited {
                 Image(systemName: "bookmark.circle.fill")

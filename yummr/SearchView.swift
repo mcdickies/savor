@@ -18,6 +18,7 @@ struct SearchView: View {
     @State private var userOnlyMode = false
     @State private var friendIDs: Set<String> = []
     @State private var pendingRequestIDs: Set<String> = []
+    @State private var selectedProfileID: String?
     @EnvironmentObject var auth: AuthService
 
     @State private var friendListener: ListenerRegistration?
@@ -67,44 +68,7 @@ struct SearchView: View {
                             Section("Users") {
                                 ForEach(userResults, id: \.handle) { user in
                                     HStack {
-                                        if let id = user.id, !id.isEmpty {
-                                            NavigationLink(destination: ProfileView(userID: id)) {
-                                                HStack {
-                                                    CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
-                                                        Circle().fill(Color.gray.opacity(0.3))
-                                                            .frame(width: 44, height: 44)
-                                                    }
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: 44, height: 44)
-                                                    .clipShape(Circle())
-
-                                                    VStack(alignment: .leading) {
-                                                        Text(user.displayName)
-                                                        Text("@\(user.handle)")
-                                                            .font(.caption)
-                                                            .foregroundColor(.gray)
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            HStack {
-                                                CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
-                                                    Circle().fill(Color.gray.opacity(0.3))
-                                                        .frame(width: 44, height: 44)
-                                                }
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: 44, height: 44)
-                                                .clipShape(Circle())
-
-                                                VStack(alignment: .leading) {
-                                                    Text(user.displayName)
-                                                    Text("@\(user.handle)")
-                                                        .font(.caption)
-                                                        .foregroundColor(.gray)
-                                                }
-                                            }
-                                            .opacity(0.6)
-                                        }
+                                        userRowButton(for: user)
                                         Spacer()
                                         friendActionButton(for: user)
                                     }
@@ -140,6 +104,28 @@ struct SearchView: View {
                 Spacer()
             }
             .navigationTitle("Search")
+            .background(
+                NavigationLink(
+                    destination: Group {
+                        if let selected = selectedProfileID {
+                            ProfileView(userID: selected)
+                        } else {
+                            EmptyView()
+                        }
+                    },
+                    isActive: Binding(
+                        get: { selectedProfileID != nil },
+                        set: { isActive in
+                            if !isActive {
+                                selectedProfileID = nil
+                            }
+                        }
+                    )
+                ) {
+                    EmptyView()
+                }
+                .hidden()
+            )
         }
         .onAppear(perform: loadRecommendations)
         .onAppear(perform: startFriendListeners)
@@ -195,36 +181,7 @@ struct SearchView: View {
                 HStack(spacing: 16) {
                     ForEach(contactSuggestions, id: \.handle) { user in
                         VStack(spacing: 8) {
-                            if let id = user.id, !id.isEmpty {
-                                NavigationLink(destination: ProfileView(userID: id)) {
-                                    VStack {
-                                        CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
-                                            Circle().fill(Color.gray.opacity(0.3))
-                                                .frame(width: 64, height: 64)
-                                        }
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 64, height: 64)
-                                        .clipShape(Circle())
-
-                                        Text(user.displayName)
-                                            .font(.caption)
-                                    }
-                                }
-                            } else {
-                                VStack {
-                                    CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
-                                        Circle().fill(Color.gray.opacity(0.3))
-                                            .frame(width: 64, height: 64)
-                                    }
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 64, height: 64)
-                                    .clipShape(Circle())
-
-                                    Text(user.displayName)
-                                        .font(.caption)
-                                }
-                                .opacity(0.6)
-                            }
+                            suggestionCard(for: user)
                             friendActionButton(for: user)
                                 .font(.caption)
                         }
@@ -320,5 +277,59 @@ struct SearchView: View {
                 .buttonStyle(.bordered)
             }
         }
+    }
+
+    private func userRowButton(for user: AppUser) -> some View {
+        let isEnabled = (user.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+        return Button {
+            if let id = user.id, !id.isEmpty {
+                selectedProfileID = id
+            }
+        } label: {
+            HStack {
+                CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                    Circle().fill(Color.gray.opacity(0.3))
+                        .frame(width: 44, height: 44)
+                }
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+
+                VStack(alignment: .leading) {
+                    Text(user.displayName)
+                    Text("@\(user.handle)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            .opacity(isEnabled ? 1 : 0.6)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+    }
+
+    private func suggestionCard(for user: AppUser) -> some View {
+        let isEnabled = (user.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+        return Button {
+            if let id = user.id, !id.isEmpty {
+                selectedProfileID = id
+            }
+        } label: {
+            VStack {
+                CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                    Circle().fill(Color.gray.opacity(0.3))
+                        .frame(width: 64, height: 64)
+                }
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 64, height: 64)
+                .clipShape(Circle())
+
+                Text(user.displayName)
+                    .font(.caption)
+            }
+            .opacity(isEnabled ? 1 : 0.6)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 }
