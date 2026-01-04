@@ -31,6 +31,7 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var followerCount: Int = 0
     @State private var followingCount: Int = 0
+    @State private var hasFriendCounts = false
     @State private var activeFriendList: FriendListView.Mode?
     @State private var isFollowingProfile = false
     @State private var isProcessingFollowAction = false
@@ -86,7 +87,14 @@ struct ProfileView: View {
 
                     Picker("Profile Content", selection: $selectedTab) {
                         ForEach(ProfileTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
+                            switch tab {
+                            case .posts:
+                                Label("Posts", systemImage: "square.grid.2x2")
+                                    .tag(tab)
+                            case .tagged:
+                                Label("Tagged", systemImage: "tag")
+                                    .tag(tab)
+                            }
                         }
                     }
                     .pickerStyle(.segmented)
@@ -427,6 +435,7 @@ struct ProfileView: View {
 
     private func loadProfileData() {
         guard let uid = resolvedUserID else { return }
+        hasFriendCounts = false
         profileListener?.remove()
         profileListener = db.collection("users").document(uid)
             .addSnapshotListener { snapshot, _ in
@@ -434,10 +443,10 @@ struct ProfileView: View {
                     DispatchQueue.main.async {
                         self.profileUser = user
                         self.bio = user.bio ?? ""
-                        let storedFollowers = user.followerCount ?? 0
-                        let storedFollowing = user.followingCount ?? 0
-                        self.followerCount = max(self.followerCount, storedFollowers)
-                        self.followingCount = max(self.followingCount, storedFollowing)
+                        if !hasFriendCounts {
+                            self.followerCount = user.followerCount ?? 0
+                            self.followingCount = user.followingCount ?? 0
+                        }
                         if let profileURL = user.profileImageURL, let url = URL(string: profileURL) {
                             self.profileImageURL = url
                         }
@@ -536,6 +545,7 @@ struct ProfileView: View {
             DispatchQueue.main.async {
                 self.followerCount = ids.count
                 self.followingCount = ids.count
+                self.hasFriendCounts = true
             }
         }
     }

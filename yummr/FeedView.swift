@@ -22,7 +22,7 @@ struct FeedView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     ForEach(posts) { post in
                         NavigationLink(destination: PostDetailView(post: post)) {
                             PostCard(post: post)
@@ -30,7 +30,8 @@ struct FeedView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 12)
             }
             .navigationTitle("The Feed")
             .navigationBarTitleDisplayMode(.inline)

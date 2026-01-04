@@ -94,7 +94,7 @@ extension Post {
 
     private func strippingCreativeTags(from text: String) -> String {
         text
-            .replacingOccurrences(of: "<creative>", with: "")
-            .replacingOccurrences(of: "</creative>", with: "")
+            .replacingOccurrences(of: "<creative>", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "</creative>", with: "", options: .caseInsensitive)
     }
 }

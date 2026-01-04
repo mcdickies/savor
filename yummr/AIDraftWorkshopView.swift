@@ -70,6 +70,10 @@ struct AIDraftWorkshopView: View {
         }
         .navigationTitle("AI Draft")
         .navigationBarTitleDisplayMode(.inline)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
         .onAppear {
             audioRecorder.requestPermissions()
         }

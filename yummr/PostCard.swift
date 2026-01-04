@@ -25,7 +25,7 @@ struct PostCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             header
 
             titleRow
@@ -51,8 +51,9 @@ struct PostCard: View {
                 commentPreview
             }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
@@ -193,7 +194,7 @@ struct PostCard: View {
     }
 
     private var commentPreview: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(previewComments) { comment in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(commentAuthor(for: comment))
@@ -201,7 +202,7 @@ struct PostCard: View {
                         .foregroundColor(Color(.secondaryLabel))
 
                     Text(comment.text)
-                        .appTextStyle(.body)
+                        .appTextStyle(.footnote)
                         .foregroundColor(.primary)
                         .lineLimit(2)
                 }
@@ -245,7 +246,7 @@ struct PostCard: View {
     private var imageCarousel: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let height = width * 0.8
+            let height = width * 0.95
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(Array(post.imageURLs.enumerated()), id: \.offset) { item in
@@ -268,7 +269,7 @@ struct PostCard: View {
                 }
             }
         }
-        .frame(height: UIScreen.main.bounds.width * 0.8)
+        .frame(height: UIScreen.main.bounds.width * 0.95)
         .overlay(alignment: .topTrailing) {
             if post.isFavorited {
                 Image(systemName: "bookmark.circle.fill")

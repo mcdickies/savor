@@ -55,14 +55,16 @@ final class SavedService: ObservableObject {
             .document(uid)
             .collection("collections")
             .document(collectionID)
-
-        collectionRef.getDocument { snapshot, error in
-            if let error = error {
-                completion?(.failure(error))
-                return
+        db.runTransaction({ transaction, _ in
+            let snapshot: DocumentSnapshot
+            do {
+                snapshot = try transaction.getDocument(collectionRef)
+            } catch {
+                return nil
             }
 
-            let existing = (try? snapshot?.data(as: AppUser.SavedCollection.self)) ?? AppUser.SavedCollection(id: collectionID, title: collectionID == "all" ? "All Saves" : collectionID)
+            let existing = (try? snapshot.data(as: AppUser.SavedCollection.self))
+                ?? AppUser.SavedCollection(id: collectionID, title: collectionID == "all" ? "All Saves" : collectionID)
             var postIDs = existing.postIDs
             let isSaved: Bool
             if postIDs.contains(postID) {
@@ -77,16 +79,16 @@ final class SavedService: ObservableObject {
                 "title": existing.title,
                 "postIDs": postIDs
             ]
-            if existing.createdAt == nil {
+            if snapshot.data()?["createdAt"] == nil {
                 payload["createdAt"] = FieldValue.serverTimestamp()
             }
-
-            collectionRef.setData(payload, merge: true) { error in
-                if let error = error {
-                    completion?(.failure(error))
-                } else {
-                    completion?(.success(isSaved))
-                }
+            transaction.setData(payload, forDocument: collectionRef, merge: true)
+            return isSaved
+        }) { result, error in
+            if let error = error {
+                completion?(.failure(error))
+            } else if let isSaved = result as? Bool {
+                completion?(.success(isSaved))
             }
         }
     }

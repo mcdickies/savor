@@ -176,6 +176,10 @@ struct CreatePostView: View {
             }
             .navigationTitle("Create Post")
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
         .sheet(isPresented: $showCameraPicker) {
             ImagePicker(image: $capturedImage, sourceType: .camera)
         }
@@ -222,18 +226,46 @@ struct CreatePostView: View {
             Text("Your rating")
                 .font(.headline)
 
-            HStack(alignment: .center, spacing: 12) {
-                Slider(value: $starRating, in: 0...5, step: 0.5) {
-                    Text("Star rating")
-                }
-                Text(String(format: "%.1f ★", starRating))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(width: 72, alignment: .trailing)
-                    .accessibilityHidden(true)
-            }
+            StarRatingInput(rating: $starRating)
 
             Toggle("Mark as favorite", isOn: $isFavorite)
+        }
+    }
+
+    private struct StarRatingInput: View {
+        @Binding var rating: Double
+
+        var body: some View {
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let stepWidth = width / 5
+                HStack(spacing: 6) {
+                    ForEach(0..<5, id: \.self) { index in
+                        Image(systemName: symbol(for: index))
+                            .foregroundColor(.yellow)
+                            .font(.system(size: 20, weight: .semibold))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let clamped = min(max(0, value.location.x), width)
+                            let raw = clamped / stepWidth
+                            let halfSteps = (raw * 2).rounded() / 2
+                            rating = min(5, max(0, halfSteps))
+                        }
+                )
+            }
+            .frame(height: 28)
+        }
+
+        private func symbol(for index: Int) -> String {
+            let threshold = rating - Double(index)
+            if threshold >= 1 { return "star.fill" }
+            if threshold >= 0.5 { return "star.leadinghalf.filled" }
+            return "star"
         }
     }
 
