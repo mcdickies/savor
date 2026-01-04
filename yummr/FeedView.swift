@@ -33,6 +33,7 @@ struct FeedView: View {
                 .padding()
             }
             .navigationTitle("The Feed")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

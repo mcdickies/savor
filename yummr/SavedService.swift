@@ -73,11 +73,15 @@ final class SavedService: ObservableObject {
                 isSaved = true
             }
 
-            collectionRef.setData([
+            var payload: [String: Any] = [
                 "title": existing.title,
-                "postIDs": postIDs,
-                "createdAt": existing.createdAt ?? Date()
-            ]) { error in
+                "postIDs": postIDs
+            ]
+            if existing.createdAt == nil {
+                payload["createdAt"] = FieldValue.serverTimestamp()
+            }
+
+            collectionRef.setData(payload, merge: true) { error in
                 if let error = error {
                     completion?(.failure(error))
                 } else {

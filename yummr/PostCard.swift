@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import UIKit
 
 struct PostCard: View {
     var post: Post
@@ -10,7 +11,6 @@ struct PostCard: View {
     @State private var showAllComments = false
     @State private var commentCount = 0
     @State private var showTagsOverlay = false
-    @State private var currentImageIndex = 0
     @State private var taggedUsers: [String: AppUser] = [:]
     @State private var previewComments: [Comment] = []
     @State private var isSaved = false
@@ -25,12 +25,12 @@ struct PostCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             header
 
             titleRow
 
-            tabbedImages
+            imageCarousel
 
             if !post.photoTags.isEmpty {
                 Button {
@@ -51,8 +51,8 @@ struct PostCard: View {
                 commentPreview
             }
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
@@ -87,7 +87,7 @@ struct PostCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 NavigationLink(destination: ProfileView(userID: post.authorID)) {
                     Text(primaryAuthorName)
-                        .appTextStyle(.callout, weight: .semibold)
+                        .appTextStyle(.subheadline, weight: .semibold)
                         .foregroundColor(.primary)
                         .lineLimit(1)
                 }
@@ -242,34 +242,33 @@ struct PostCard: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private var tabbedImages: some View {
-        TabView(selection: $currentImageIndex) {
-            ForEach(Array(post.imageURLs.enumerated()), id: \.offset) { item in
-                GeometryReader { geometry in
-                    ZStack {
-                        CachedWebImage(url: URL(string: item.element)) {
-                            ProgressView()
-                        }
-                        .scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
+    private var imageCarousel: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let height = width * 1.05
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(Array(post.imageURLs.enumerated()), id: \.offset) { item in
+                        ZStack {
+                            CachedWebImage(url: URL(string: item.element)) {
+                                ProgressView()
+                            }
+                            .scaledToFill()
+                            .frame(width: width, height: height)
+                            .clipped()
 
-                        if showTagsOverlay {
-                            ForEach(tags(for: item.offset), id: \.id) { tag in
-                                tagOverlay(tag: tag, geometry: geometry)
+                            if showTagsOverlay {
+                                ForEach(tags(for: item.offset), id: \.id) { tag in
+                                    tagOverlay(tag: tag, size: CGSize(width: width, height: height))
+                                }
                             }
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .padding(.horizontal, -16)
-                .padding(.bottom, 4)
-                .tag(item.offset)
             }
         }
-        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1.0, contentMode: .fit)
+        .frame(height: UIScreen.main.bounds.width * 1.05)
         .overlay(alignment: .topTrailing) {
             if post.isFavorited {
                 Image(systemName: "bookmark.circle.fill")
@@ -281,8 +280,7 @@ struct PostCard: View {
         }
     }
 
-    private func tagOverlay(tag: Post.PhotoTag, geometry: GeometryProxy) -> some View {
-        let size = geometry.size
+    private func tagOverlay(tag: Post.PhotoTag, size: CGSize) -> some View {
         let position = position(for: tag, in: size)
         let label = tagLabel(for: tag)
         return Group {
@@ -482,4 +480,3 @@ struct PostCard: View {
         }
     }
 }
-

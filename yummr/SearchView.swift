@@ -10,15 +10,7 @@ import SwiftUI
 import FirebaseFirestore
 
 struct SearchView: View {
-    enum SortFilter: String, CaseIterable, Identifiable {
-        case trending = "Trending"
-        case newest = "New"
-
-        var id: String { rawValue }
-    }
-
     @State private var searchText: String = ""
-    @Binding var selectedFilter: SortFilter
     @State private var recommendedPosts: [Post] = []
     @State private var userResults: [AppUser] = []
     @State private var postResults: [Post] = []
@@ -33,21 +25,10 @@ struct SearchView: View {
 
     private let badges = ["Something new to try", "Something you might like", "Celebrity"]
 
-    init(selectedFilter: Binding<SortFilter>) {
-        self._selectedFilter = selectedFilter
-    }
-
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
                 searchBar
-                Picker("Sort", selection: $selectedFilter) {
-                    ForEach(SortFilter.allCases) { filter in
-                        Text(filter.rawValue).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
 
                 if searchText.isEmpty {
                     ScrollView {
@@ -86,7 +67,26 @@ struct SearchView: View {
                             Section("Users") {
                                 ForEach(userResults, id: \.handle) { user in
                                     HStack {
-                                        NavigationLink(destination: ProfileView(userID: user.id ?? "")) {
+                                        if let id = user.id, !id.isEmpty {
+                                            NavigationLink(destination: ProfileView(userID: id)) {
+                                                HStack {
+                                                    CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
+                                                        Circle().fill(Color.gray.opacity(0.3))
+                                                            .frame(width: 44, height: 44)
+                                                    }
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: 44, height: 44)
+                                                    .clipShape(Circle())
+
+                                                    VStack(alignment: .leading) {
+                                                        Text(user.displayName)
+                                                        Text("@\(user.handle)")
+                                                            .font(.caption)
+                                                            .foregroundColor(.gray)
+                                                    }
+                                                }
+                                            }
+                                        } else {
                                             HStack {
                                                 CachedWebImage(url: URL(string: user.profileImageURL ?? "")) {
                                                     Circle().fill(Color.gray.opacity(0.3))
@@ -103,6 +103,7 @@ struct SearchView: View {
                                                         .foregroundColor(.gray)
                                                 }
                                             }
+                                            .opacity(0.6)
                                         }
                                         Spacer()
                                         friendActionButton(for: user)
@@ -145,9 +146,6 @@ struct SearchView: View {
         .onDisappear(perform: stopFriendListeners)
         .onChange(of: searchText) { newValue in
             performSearch(query: newValue)
-        }
-        .onChange(of: selectedFilter) { _ in
-            sortPostResults()
         }
         .onChange(of: userOnlyMode) { _ in
             performSearch(query: searchText)
@@ -266,19 +264,9 @@ struct SearchView: View {
         } else {
             PostService.shared.searchPosts(matching: trimmed) { posts in
                 DispatchQueue.main.async {
-                    self.postResults = posts
-                    self.sortPostResults()
+                    self.postResults = posts.sorted { $0.likeCount > $1.likeCount }
                 }
             }
-        }
-    }
-
-    private func sortPostResults() {
-        switch selectedFilter {
-        case .trending:
-            postResults.sort { $0.likeCount > $1.likeCount }
-        case .newest:
-            postResults.sort { $0.timestamp > $1.timestamp }
         }
     }
 

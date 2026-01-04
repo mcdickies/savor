@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 
 struct AuthView: View {
@@ -14,6 +15,8 @@ struct AuthView: View {
     @State private var displayName = ""
     @State private var isSignup = false
     @State private var errorMessage = ""
+    @State private var showImagePicker = false
+    @State private var selectedProfileImage: UIImage?
 
     @EnvironmentObject var auth: AuthService
 
@@ -32,6 +35,32 @@ struct AuthView: View {
             if isSignup {
                 TextField("Display Name", text: $displayName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                Button {
+                    showImagePicker = true
+                } label: {
+                    HStack(spacing: 12) {
+                        if let image = selectedProfileImage {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 48, height: 48)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .font(.system(size: 32))
+                                .foregroundColor(.secondary)
+                        }
+
+                        Text(selectedProfileImage == nil ? "Add Profile Photo" : "Change Profile Photo")
+                            .font(.subheadline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(Color(UIColor.systemGray6))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
             }
 
             if !errorMessage.isEmpty {
@@ -42,10 +71,20 @@ struct AuthView: View {
             Button(action: {
                 errorMessage = ""
                 if isSignup {
+                    let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmedName.isEmpty else {
+                        errorMessage = "Please enter your name."
+                        return
+                    }
+                    guard selectedProfileImage != nil else {
+                        errorMessage = "Please add a profile photo."
+                        return
+                    }
                     auth.register(
                         email: email,
                         password: password,
-                        displayName: displayName
+                        displayName: trimmedName,
+                        profileImage: selectedProfileImage
                     ) { success, error in
                         if !success {
                             errorMessage = error ?? "Sign-up failed"
@@ -71,6 +110,10 @@ struct AuthView: View {
             Button(action: {
                 isSignup.toggle()
                 errorMessage = ""
+                if !isSignup {
+                    displayName = ""
+                    selectedProfileImage = nil
+                }
             }) {
                 Text(isSignup
                         ? "Already have an account? Log in"
@@ -79,5 +122,8 @@ struct AuthView: View {
             }
         }
         .padding()
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker(image: $selectedProfileImage)
+        }
     }
 }

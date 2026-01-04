@@ -10,9 +10,6 @@ struct StarRatingView: View {
                     .foregroundColor(.yellow)
                     .font(.system(size: 14, weight: .semibold))
             }
-            Text(String(format: "%.1f", rating))
-                .appTextStyle(.footnote, weight: .semibold)
-                .foregroundColor(.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Rated \(String(format: "%.1f", rating)) out of five stars")
