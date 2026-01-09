@@ -122,6 +122,10 @@ struct AuthView: View {
             }
         }
         .padding()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(image: $selectedProfileImage)
         }

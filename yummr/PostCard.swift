@@ -220,10 +220,14 @@ struct PostCard: View {
     }
 
     private func toggleSave() {
+        let previousValue = isSaved
+        isSaved.toggle()
         SavedService.shared.toggleSave(post: post) { result in
             DispatchQueue.main.async {
                 if case .success(let saved) = result {
                     self.isSaved = saved
+                } else if case .failure = result {
+                    self.isSaved = previousValue
                 }
             }
         }

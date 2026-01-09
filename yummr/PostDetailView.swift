@@ -62,6 +62,10 @@ struct PostDetailView: View {
             }
             .padding()
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
         .navigationTitle(livePost.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

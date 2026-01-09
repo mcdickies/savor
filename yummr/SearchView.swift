@@ -103,6 +103,10 @@ struct SearchView: View {
 
                 Spacer()
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissKeyboard()
+            }
             .navigationTitle("Search")
             .background(
                 NavigationLink(
