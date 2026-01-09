@@ -7,6 +7,7 @@
 
 import FirebaseAuth
 import Combine
+import UIKit
 
 class AuthService: ObservableObject {
     @Published var currentUser: User?
@@ -45,6 +46,7 @@ class AuthService: ObservableObject {
     func register(email: String,
                   password: String,
                   displayName: String,
+                  profileImage: UIImage? = nil,
                   completion: @escaping (Bool, String?) -> Void) {
         Auth.auth().createUser(withEmail: email, password: password) { result, error in
             if let error = error {
@@ -58,12 +60,31 @@ class AuthService: ObservableObject {
                     } else {
                         // Refresh currentUser so displayName is populated
                         self.currentUser = Auth.auth().currentUser
-                        if let refreshed = self.currentUser {
-                            UserService.shared.ensureUserDocument(for: refreshed, displayName: displayName)
-                        } else {
-                            UserService.shared.ensureUserDocument(for: user, displayName: displayName)
+                        let resolvedUser = self.currentUser ?? user
+                        UserService.shared.ensureUserDocument(for: resolvedUser, displayName: displayName)
+
+                        guard let profileImage = profileImage else {
+                            completion(true, nil)
+                            return
                         }
-                        completion(true, nil)
+
+                        StorageService.shared.uploadImage(profileImage) { result in
+                            switch result {
+                            case .success(let urlString):
+                                let updateReq = resolvedUser.createProfileChangeRequest()
+                                updateReq.photoURL = URL(string: urlString)
+                                updateReq.commitChanges { photoError in
+                                    if let photoError = photoError {
+                                        completion(false, photoError.localizedDescription)
+                                        return
+                                    }
+                                    UserService.shared.updateProfileImage(uid: resolvedUser.uid, url: urlString)
+                                    completion(true, nil)
+                                }
+                            case .failure(let error):
+                                completion(false, error.localizedDescription)
+                            }
+                        }
                     }
                 }
             }

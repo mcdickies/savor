@@ -14,7 +14,6 @@ struct RootView: View {
     }
 
     @StateObject var auth = AuthService()
-    @State private var searchFilter: SearchView.SortFilter = .trending
     @State private var selectedTab: Tab = .feed
     @State private var feedViewID = UUID()
     @State private var searchViewID = UUID()
@@ -39,7 +38,7 @@ struct RootView: View {
                         .tabItem { Label("Feed",    systemImage: "list.bullet") }
                         .tag(Tab.feed)
 
-                    SearchView(selectedFilter: $searchFilter)
+                    SearchView()
                         .id(searchViewID)
                         .tabItem { Label("Search",  systemImage: "magnifyingglass") }
                         .tag(Tab.search)

@@ -44,6 +44,7 @@
 		D0DDE6612E0FDBB100691496 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6602E0FDBB100691496 /* KeychainHelper.swift */; };
 		D0DDE6632E0FDD7A00691496 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6622E0FDD7A00691496 /* LoginView.swift */; };
 		D0DDE6652E0FFC9A00691496 /* PostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6642E0FFC9A00691496 /* PostCard.swift */; };
+		D2A9B0C62F2345A100BEEF01 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A9B0C52F2345A100BEEF01 /* ShareSheet.swift */; };
 		D0DDE6672E10079900691496 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE6662E10079800691496 /* StorageService.swift */; };
 		D0DDE66B2E10081200691496 /* PostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE66A2E10080900691496 /* PostService.swift */; };
 		D0DDE66D2E10084100691496 /* CreatePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DDE66C2E10084100691496 /* CreatePostView.swift */; };
@@ -102,6 +103,7 @@
 		D0DDE66A2E10080900691496 /* PostService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostService.swift; sourceTree = "<group>"; };
 		D0DDE66C2E10084100691496 /* CreatePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePostView.swift; sourceTree = "<group>"; };
 		D0DDE6762E100F4500691496 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
+		D2A9B0C52F2345A100BEEF01 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		D0E7494C2E377245008B42CD /* notes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = notes.swift; sourceTree = "<group>"; };
 		D0F9B2AF2F12A1BC00FF1234 /* SecretsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretsService.swift; sourceTree = "<group>"; };
 		D12E7A5E2FD4541E00E9CB25 /* AppStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStyle.swift; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 				D0DDE66A2E10080900691496 /* PostService.swift */,
 				D0DDE6662E10079800691496 /* StorageService.swift */,
 				D0DDE6642E0FFC9A00691496 /* PostCard.swift */,
+				D2A9B0C52F2345A100BEEF01 /* ShareSheet.swift */,
 				D0DDE6622E0FDD7A00691496 /* LoginView.swift */,
 				D0DDE6602E0FDBB100691496 /* KeychainHelper.swift */,
 				D0DDE65E2E0FD0CB00691496 /* FeedView.swift */,
@@ -324,6 +327,7 @@
 				D03A834C2E0F8A7A00AA7342 /* AuthService.swift in Sources */,
 				D03A82CF2E0F85C000AA7342 /* yummrApp.swift in Sources */,
 				D0DDE6652E0FFC9A00691496 /* PostCard.swift in Sources */,
+				D2A9B0C62F2345A100BEEF01 /* ShareSheet.swift in Sources */,
 				D12E7A632FD454BB00E9CB25 /* StarRatingView.swift in Sources */,
 				D03E44042E12DE2B00FE91E9 /* PostDetailView.swift in Sources */,
 				D0DDE66B2E10081200691496 /* PostService.swift in Sources */,
@@ -472,7 +476,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"yummr/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = B6TMR5N6Z8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -506,7 +510,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"yummr/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = B6TMR5N6Z8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

@@ -52,10 +52,16 @@ extension Post {
 
     var instructionsList: [String] {
         guard let recipe else { return [] }
-        return recipe
+        return strippingCreativeTags(from: recipe)
             .components(separatedBy: CharacterSet.newlines)
             .map { sanitizeInstruction($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             .filter { !$0.isEmpty }
+    }
+
+    var cleanedRecipeText: String? {
+        guard let recipe else { return nil }
+        let cleaned = strippingCreativeTags(from: recipe)
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : cleaned
     }
 
     private func parseDouble(forKeys keys: [String]) -> Double? {
@@ -82,13 +88,13 @@ extension Post {
     }
 
     private func sanitizeInstruction(_ step: String) -> String {
-        guard let opening = step.firstIndex(of: "<"),
-              let closing = step[opening...].firstIndex(of: ">"),
-              opening == step.startIndex else {
-            return step
-        }
+        let cleaned = strippingCreativeTags(from: step)
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
-        let cleaned = step[step.index(after: closing)...].trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? step : cleaned
+    private func strippingCreativeTags(from text: String) -> String {
+        text
+            .replacingOccurrences(of: "<creative>", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "</creative>", with: "", options: .caseInsensitive)
     }
 }

@@ -53,7 +53,7 @@ struct PostDetailView: View {
                 }
                 if !livePost.instructionsList.isEmpty {
                     instructionsSection
-                } else if let recipeText = livePost.recipe, !recipeText.isEmpty {
+                } else if let recipeText = livePost.cleanedRecipeText {
                     Text(recipeText)
                         .appTextStyle(.body)
                         .foregroundColor(.primary)
@@ -61,6 +61,10 @@ struct PostDetailView: View {
                 commentSection
             }
             .padding()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
         }
         .navigationTitle(livePost.title)
         .navigationBarTitleDisplayMode(.inline)

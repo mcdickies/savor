@@ -31,6 +31,7 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var followerCount: Int = 0
     @State private var followingCount: Int = 0
+    @State private var hasFriendCounts = false
     @State private var activeFriendList: FriendListView.Mode?
     @State private var isFollowingProfile = false
     @State private var isProcessingFollowAction = false
@@ -39,9 +40,12 @@ struct ProfileView: View {
 
     private let db = Firestore.firestore()
     @State private var friendListener: ListenerRegistration?
+    @State private var profileListener: ListenerRegistration?
 
     private var resolvedUserID: String? {
-        userID ?? auth.currentUser?.uid
+        let candidate = userID ?? auth.currentUser?.uid
+        let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var isCurrentUser: Bool {
@@ -55,9 +59,7 @@ struct ProfileView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    bannerSection
-                    headerSection
-                    statsSection
+                    profileSummaryCard
                     if let topFoods = profileUser?.topFoods, !topFoods.isEmpty {
                         TagSection(title: "Top Foods", tags: topFoods)
                     }
@@ -85,7 +87,14 @@ struct ProfileView: View {
 
                     Picker("Profile Content", selection: $selectedTab) {
                         ForEach(ProfileTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
+                            switch tab {
+                            case .posts:
+                                Label("Posts", systemImage: "square.grid.2x2")
+                                    .tag(tab)
+                            case .tagged:
+                                Label("Tagged", systemImage: "tag")
+                                    .tag(tab)
+                            }
                         }
                     }
                     .pickerStyle(.segmented)
@@ -96,6 +105,7 @@ struct ProfileView: View {
                 .padding(.bottom, 24)
             }
             .navigationTitle(profileUser?.displayName ?? "Profile")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if isCurrentUser {
                     ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -116,7 +126,7 @@ struct ProfileView: View {
             startFriendListener()
             refreshFriendshipState()
         }
-        .onDisappear(perform: stopFriendListener)
+        .onDisappear(perform: stopListeners)
         .onChange(of: userID) { _ in
             loadProfileData()
             loadPosts()
@@ -167,7 +177,7 @@ struct ProfileView: View {
     }
 
     private var bannerSection: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack {
             Group {
                 if let bannerURL = bannerImageURL {
                     CachedWebImage(url: bannerURL) {
@@ -193,69 +203,51 @@ struct ProfileView: View {
                     }
                 }
             }
+        }
+    }
 
-            HStack(alignment: .bottom, spacing: 16) {
+    private var profileSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    if let profileURL = profileImageURL {
-                        CachedWebImage(url: profileURL) {
-                            Circle().fill(Color.gray)
+                    Group {
+                        if let profileURL = profileImageURL {
+                            CachedWebImage(url: profileURL) {
+                                Circle().fill(Color.gray.opacity(0.3))
+                            }
+                            .scaledToFill()
+                        } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundColor(Color(.tertiaryLabel))
                         }
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 100, height: 100)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white, lineWidth: 4))
-                    } else {
-                        Circle()
-                            .fill(Color.gray)
-                            .frame(width: 100, height: 100)
-                            .overlay(Circle().stroke(Color.white, lineWidth: 4))
                     }
+                    .frame(width: 72, height: 72)
+                    .clipShape(Circle())
 
                     if isCurrentUser {
                         Button(action: { showImagePicker = true }) {
                             Image(systemName: "pencil.circle.fill")
-                                .foregroundColor(.blue)
-                                .background(Color.white)
-                                .clipShape(Circle())
+                                .foregroundColor(.accentColor)
+                                .background(Color.white.clipShape(Circle()))
                         }
-                        .offset(x: 10, y: 10)
+                        .offset(x: 4, y: 4)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(profileUser?.displayName ?? auth.currentUser?.displayName ?? "Username")
-                        .font(.title2)
-                        .bold()
-                    Text("@\(profileUser?.handle ?? auth.currentUser?.email ?? "handle")")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    Text(profileUser?.displayName ?? "New Chef")
+                        .font(.headline)
+                    if let handle = profileUser?.handle, !handle.isEmpty {
+                        Text("@\(handle)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .padding(.bottom, 12)
-            }
-            .padding([.leading, .bottom], 16)
-        }
-    }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if isEditingBio {
-                TextField("Enter bio", text: $bio, axis: .vertical)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                HStack {
-                    Button("Save") {
-                        updateBio()
-                        isEditingBio = false
-                    }
-                    Button("Cancel") {
-                        bio = profileUser?.bio ?? ""
-                        isEditingBio = false
-                    }
-                }
-                .font(.caption)
-            } else {
-                Text(bio.isEmpty ? "No bio yet." : bio)
-                    .italic()
-                    .foregroundColor(.gray)
+                Spacer()
+
                 if isCurrentUser {
                     Button("Edit Bio") { isEditingBio = true }
                         .font(.caption)
@@ -263,53 +255,76 @@ struct ProfileView: View {
                     followActionButton
                 }
             }
-        }
-        .padding(.horizontal)
-    }
 
-    private var statsSection: some View {
-        HStack {
-            Button {
-                activeFriendList = .followers
-            } label: {
-                VStack {
-                    Text("Followers")
-                        .font(.caption)
-                        .foregroundColor(.primary)
-                    Text("\(followerCount)")
-                        .bold()
-                        .foregroundColor(.primary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-            .disabled(resolvedUserID == nil)
-
-            Button {
-                activeFriendList = .following
-            } label: {
-                VStack {
-                    Text("Following")
-                        .font(.caption)
-                        .foregroundColor(.primary)
-                    Text("\(followingCount)")
-                        .bold()
-                        .foregroundColor(.primary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-            .disabled(resolvedUserID == nil)
-
-            VStack {
-                Text("Posts")
+            VStack(alignment: .leading, spacing: 6) {
+                if isEditingBio {
+                    TextField("Enter bio", text: $bio, axis: .vertical)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    HStack(spacing: 12) {
+                        Button("Save") {
+                            updateBio()
+                            isEditingBio = false
+                        }
+                        Button("Cancel") {
+                            bio = profileUser?.bio ?? ""
+                            isEditingBio = false
+                        }
+                    }
                     .font(.caption)
-                Text("\(userPosts.count)")
-                    .bold()
+                } else {
+                    Text(bio.isEmpty ? "No bio yet." : bio)
+                        .foregroundColor(.secondary)
+                }
             }
-            .frame(maxWidth: .infinity)
+
+            HStack {
+                Button {
+                    activeFriendList = .followers
+                } label: {
+                    VStack {
+                        Text("Followers")
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                        Text("\(followerCount)")
+                            .bold()
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .disabled(resolvedUserID == nil)
+
+                Button {
+                    activeFriendList = .following
+                } label: {
+                    VStack {
+                        Text("Following")
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                        Text("\(followingCount)")
+                            .bold()
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .disabled(resolvedUserID == nil)
+
+                VStack {
+                    Text("Posts")
+                        .font(.caption)
+                    Text("\(userPosts.count)")
+                        .bold()
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
         .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+        .padding(.horizontal)
     }
 
     private var profilePostGrid: some View {
@@ -420,22 +435,27 @@ struct ProfileView: View {
 
     private func loadProfileData() {
         guard let uid = resolvedUserID else { return }
-        db.collection("users").document(uid).getDocument { snapshot, _ in
-            if let user = try? snapshot?.data(as: AppUser.self) {
-                DispatchQueue.main.async {
-                    self.profileUser = user
-                    self.bio = user.bio ?? ""
-                    self.followerCount = user.followerCount ?? 0
-                    self.followingCount = user.followingCount ?? 0
-                    if let profileURL = user.profileImageURL, let url = URL(string: profileURL) {
-                        self.profileImageURL = url
-                    }
-                    if let bannerURL = user.bannerImageURL, let url = URL(string: bannerURL) {
-                        self.bannerImageURL = url
+        hasFriendCounts = false
+        profileListener?.remove()
+        profileListener = db.collection("users").document(uid)
+            .addSnapshotListener { snapshot, _ in
+                if let user = try? snapshot?.data(as: AppUser.self) {
+                    DispatchQueue.main.async {
+                        self.profileUser = user
+                        self.bio = user.bio ?? ""
+                        if !hasFriendCounts {
+                            self.followerCount = user.followerCount ?? 0
+                            self.followingCount = user.followingCount ?? 0
+                        }
+                        if let profileURL = user.profileImageURL, let url = URL(string: profileURL) {
+                            self.profileImageURL = url
+                        }
+                        if let bannerURL = user.bannerImageURL, let url = URL(string: bannerURL) {
+                            self.bannerImageURL = url
+                        }
                     }
                 }
             }
-        }
     }
 
     private func loadPosts() {
@@ -519,19 +539,22 @@ struct ProfileView: View {
     }
 
     private func startFriendListener() {
-        guard isCurrentUser, let uid = resolvedUserID else { return }
+        guard let uid = resolvedUserID else { return }
         friendListener?.remove()
         friendListener = FriendService.shared.observeFriendIDs(for: uid) { ids in
             DispatchQueue.main.async {
                 self.followerCount = ids.count
                 self.followingCount = ids.count
+                self.hasFriendCounts = true
             }
         }
     }
 
-    private func stopFriendListener() {
+    private func stopListeners() {
         friendListener?.remove()
         friendListener = nil
+        profileListener?.remove()
+        profileListener = nil
     }
 
     private func followProfile() {

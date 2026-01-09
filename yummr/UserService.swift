@@ -48,7 +48,9 @@ final class UserService: ObservableObject {
             var payload: [String: Any] = [:]
 
             let existingDisplayName = (existingData["displayName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if existingDisplayName?.isEmpty ?? true {
+            if let overrideName = overrideName, overrideName != existingDisplayName {
+                payload["displayName"] = overrideName
+            } else if existingDisplayName?.isEmpty ?? true {
                 payload["displayName"] = resolvedDisplayName
             }
 
@@ -123,6 +125,12 @@ final class UserService: ObservableObject {
                 completion?(error)
             }
         }
+    }
+
+    func updateProfileImage(uid: String, url: String, completion: ((Error?) -> Void)? = nil) {
+        db.collection("users")
+            .document(uid)
+            .setData(["profileImageURL": url], merge: true, completion: completion)
     }
 
     func searchUsers(matching query: String,

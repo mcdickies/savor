@@ -14,12 +14,8 @@ struct AIDraftWorkshopView: View {
     @Binding var calorieEstimate: String
     @Binding var aiNotes: [String]
 
-    @State private var ideaPrompt: String = ""
-    @State private var capturedIdeas: [String] = []
-
     @StateObject private var audioRecorder = AudioRecorderService()
 
-    @State private var customGuidance: String = ""
     @State private var aiErrorMessage: String?
     @State private var isDraftingWithAI: Bool = false
     @State private var lastGeneratedDate: Date?
@@ -27,8 +23,6 @@ struct AIDraftWorkshopView: View {
     @State private var referencePhotoItems: [PhotosPickerItem] = []
     @State private var showReferenceCamera: Bool = false
     @State private var capturedReferenceImage: UIImage?
-
-    private let promptPlaceholder = "Describe the meal, ingredients, or vibe you want the AI to build on..."
 
     private var aiButtonTitle: String {
         lastGeneratedDate == nil ? "Draft with AI" : "Regenerate with AI"
@@ -62,11 +56,7 @@ struct AIDraftWorkshopView: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 aiDraftingControls
-                promptSection
                 audioCaptureSection
-                if !capturedIdeas.isEmpty {
-                    capturedIdeasSection
-                }
                 ingredientsTuningSection
                 draftSection
                 recipeSection
@@ -80,6 +70,10 @@ struct AIDraftWorkshopView: View {
         }
         .navigationTitle("AI Draft")
         .navigationBarTitleDisplayMode(.inline)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
         .onAppear {
             audioRecorder.requestPermissions()
         }
@@ -117,7 +111,7 @@ struct AIDraftWorkshopView: View {
             Text("Workshop your post with AI")
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Use this space to capture prompts, iterate on AI generated suggestions, and fine‑tune the draft before heading back to the manual composer.")
+            Text("Use voice notes, photos, and ingredients to generate a clean draft before heading back to the post composer.")
                 .font(.callout)
                 .foregroundColor(.secondary)
         }
@@ -127,25 +121,9 @@ struct AIDraftWorkshopView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("AI Drafting")
                 .font(.headline)
-            Text("Combine your transcript, photos, and notes to draft a recipe. Tweak the guidance below to regenerate as needed.")
+            Text("Use your transcript, photos, and ingredients to draft a recipe.")
                 .font(.callout)
                 .foregroundColor(.secondary)
-
-            ZStack(alignment: .topLeading) {
-                if customGuidance.isEmpty {
-                    Text("Optional: tell the AI about serving size, dietary notes, or the vibe you want.")
-                        .foregroundColor(.secondary)
-                        .padding(.top, 8)
-                        .padding(.horizontal, 4)
-                }
-                TextEditor(text: $customGuidance)
-                    .frame(minHeight: 100)
-                    .padding(4)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
-            }
 
             Button {
                 requestAIDraft()
@@ -288,8 +266,8 @@ struct AIDraftWorkshopView: View {
                 currentDescription: description,
                 currentRecipe: recipe.plainText,
                 transcript: audioTranscript,
-                capturedIdeas: capturedIdeas,
-                customPrompt: customGuidance,
+                capturedIdeas: [],
+                customPrompt: "",
                 ingredients: ingredients,
                 images: selectedImages,
                 referenceImages: aiReferenceImages
@@ -393,79 +371,6 @@ struct AIDraftWorkshopView: View {
         formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: Date())
     }
-
-    private var promptSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Prompt Scratchpad")
-                .font(.headline)
-            ZStack(alignment: .topLeading) {
-                if ideaPrompt.isEmpty {
-                    Text(promptPlaceholder)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 8)
-                }
-                TextEditor(text: $ideaPrompt)
-                    .frame(minHeight: 140)
-                    .padding(4)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
-            }
-            Button {
-                let trimmed = ideaPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
-                withAnimation {
-                    capturedIdeas.insert(trimmed, at: 0)
-                }
-                ideaPrompt = ""
-            } label: {
-                Label("Save Idea", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-    }
-
-   
-    private var capturedIdeasSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Captured Ideas")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 8) {
-                // Simple: iterate the strings directly (no indices, no enumerated)
-                ForEach(capturedIdeas, id: \.self) { idea in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(idea).font(.body)
-
-                        HStack(spacing: 12) {
-                            Button("Apply to Title") { title = idea }
-                            Button("Apply to Description") { description = idea }
-                            Button("Append to Recipe") { appendRecipeText(idea) }
-                        }
-                        .font(.footnote)
-                    }
-                    .padding()
-                    .background(Color(uiColor: .secondarySystemBackground)) // avoids UIKit import ambiguity
-                    .cornerRadius(12)
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            withAnimation {
-                                if let i = capturedIdeas.firstIndex(of: idea) {
-                                    capturedIdeas.remove(at: i)
-                                }
-                            }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
 
     private var ingredientsTuningSection: some View {
         VStack(alignment: .leading, spacing: 12) {

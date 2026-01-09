@@ -82,6 +82,7 @@ class PostService: ObservableObject {
 
         resolveAuthorName(for: uid) { [weak self] authorName in
             guard let self = self else { return }
+            let cleanedRecipe = self.stripCreativeTags(from: recipe)
             var urls: [String] = Array(repeating: "", count: images.count)
             var detailURLs: [String] = Array(repeating: "", count: detailImages.count)
             var uploadError: Error?
@@ -185,7 +186,7 @@ class PostService: ObservableObject {
                 let post = Post(
                     title: title,
                     description: description,
-                    recipe: recipe,
+                    recipe: cleanedRecipe,
                     cookTime: cookTime,
                     imageURLs: urls,
                     detailImages: sanitizedDetailURLs,
@@ -254,10 +255,11 @@ class PostService: ObservableObject {
         let sanitizedExtras = sanitizeExtraFields(extraFields)
         let sanitizedRecipe = sanitizeInstructions(recipeSteps)
         let recipeString = sanitizedRecipe.joined(separator: "\n")
+        let cleanedRecipe = stripCreativeTags(from: recipeString) ?? ""
 
         var payload: [String: Any] = [
             "description": description,
-            "recipe": recipeString,
+            "recipe": cleanedRecipe,
             "extraFields": sanitizedExtras
         ]
 
@@ -365,6 +367,15 @@ private extension PostService {
         }
 
         return sanitized
+    }
+
+    func stripCreativeTags(from text: String?) -> String? {
+        guard let text = text else { return nil }
+        let cleaned = text
+            .replacingOccurrences(of: "<creative>", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "</creative>", with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     func sanitizeCalories(_ rawValue: String?) -> String? {

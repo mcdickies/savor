@@ -3,38 +3,9 @@ import PhotosUI
 import UIKit
 
 struct CreatePostView: View {
-    enum TaggingMode: String, CaseIterable, Identifiable {
-        case post = "Entire Post"
-        case photo = "Specific Photo"
-
-        var id: String { rawValue }
-    }
-
-    enum TagLocation: String, CaseIterable, Identifiable {
-        case center = "Center"
-        case topLeft = "Top Left"
-        case topRight = "Top Right"
-        case bottomLeft = "Bottom Left"
-        case bottomRight = "Bottom Right"
-
-        var id: String { rawValue }
-
-        var coordinates: (x: Double, y: Double) {
-            switch self {
-            case .center: return (0.5, 0.5)
-            case .topLeft: return (0.2, 0.2)
-            case .topRight: return (0.8, 0.2)
-            case .bottomLeft: return (0.2, 0.8)
-            case .bottomRight: return (0.8, 0.8)
-            }
-        }
-    }
-
     struct PendingTag: Identifiable {
         let id = UUID()
         let user: AppUser
-        var imageIndex: Int?
-        var location: TagLocation?
     }
 
     @State private var title = ""
@@ -50,7 +21,6 @@ struct CreatePostView: View {
     @State private var aiReferenceImages: [UIImage] = []
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var uploadProgress: [Double] = []
-    @State private var editMode: EditMode = .inactive
     @State private var isUploading = false
     @State private var uploadSuccess = false
     @State private var errorMessage: String?
@@ -59,9 +29,6 @@ struct CreatePostView: View {
     @State private var cameraUnavailableAlert = false
     @State private var capturedImage: UIImage?
 
-    @State private var taggingMode: TaggingMode = .post
-    @State private var selectedImageIndex = 0
-    @State private var selectedLocation: TagLocation = .center
     @State private var tagSearchText = ""
     @State private var tagSearchResults: [AppUser] = []
     @State private var pendingTags: [PendingTag] = []
@@ -72,6 +39,43 @@ struct CreatePostView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
+                    Group {
+                        TextField("Title", text: $title)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        TextField("Description", text: $description, axis: .vertical)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        photoActionButtons
+
+                        TextField("Cook time (e.g. 45 minutes)", text: $cookTime)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+
+                    ingredientsSection
+
+                    TextField("Calories (estimated)", text: $calorieEstimate)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recipe Instructions")
+                            .font(.headline)
+                        ZStack(alignment: .topLeading) {
+                            if recipe.characters.isEmpty {
+                                Text("Write step-by-step instructions...")
+                                    .foregroundColor(.secondary)
+                                    .padding(EdgeInsets(top: 8, leading: 4, bottom: 0, trailing: 0))
+                            }
+                            RichTextEditor(text: $recipe)
+                                .frame(minHeight: 120)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3))
+                                )
+                        }
+                    }
+
                     NavigationLink {
                         AIDraftWorkshopView(
                             title: $title,
@@ -86,7 +90,7 @@ struct CreatePostView: View {
                             aiNotes: $aiNotes
                         )
                     } label: {
-                        Label("AI Draft", systemImage: "wand.and.stars")
+                        Label("Draft with AI", systemImage: "wand.and.stars")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -96,43 +100,7 @@ struct CreatePostView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Group {
-                        TextField("Title", text: $title)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Description", text: $description, axis: .vertical)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Recipe Instructions")
-                                .font(.headline)
-                            ZStack(alignment: .topLeading) {
-                                if recipe.characters.isEmpty {
-                                    Text("Write step-by-step instructions...")
-                                        .foregroundColor(.secondary)
-                                        .padding(EdgeInsets(top: 8, leading: 4, bottom: 0, trailing: 0))
-                                }
-                                RichTextEditor(text: $recipe)
-                                    .frame(minHeight: 120)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.gray.opacity(0.3))
-                                    )
-                            }
-                        }
-
-                        TextField("Cook time (e.g. 45 minutes)", text: $cookTime)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Calories (estimated)", text: $calorieEstimate)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        ratingSection
-                    }
-
-                    ingredientsSection
-                    mediaSelectionSection
+                    ratingSection
                     taggingSection
 
                     Button("Post") {
@@ -175,7 +143,10 @@ struct CreatePostView: View {
                 .padding()
             }
             .navigationTitle("Create Post")
-            .toolbar { EditButton() }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
         }
         .sheet(isPresented: $showCameraPicker) {
             ImagePicker(image: $capturedImage, sourceType: .camera)
@@ -187,13 +158,15 @@ struct CreatePostView: View {
         }
         .onChange(of: selectedPhotos) { items in
             Task {
-                selectedImages = []
+                var newImages = selectedImages
                 for item in items {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let uiImage = UIImage(data: data) {
-                        selectedImages.append(uiImage)
+                        newImages.append(uiImage)
                     }
                 }
+                selectedImages = newImages
+                selectedPhotos = []
             }
         }
         .onChange(of: capturedImage) { image in
@@ -203,8 +176,8 @@ struct CreatePostView: View {
             }
         }
         .onChange(of: selectedImages) { images in
-            if selectedImageIndex >= images.count {
-                selectedImageIndex = max(0, images.count - 1)
+            if images.isEmpty {
+                pendingTags = []
             }
         }
         .onChange(of: tagSearchText) { newValue in
@@ -221,18 +194,46 @@ struct CreatePostView: View {
             Text("Your rating")
                 .font(.headline)
 
-            HStack(alignment: .center, spacing: 12) {
-                Slider(value: $starRating, in: 0...5, step: 0.5) {
-                    Text("Star rating")
-                }
-                Text(String(format: "%.1f ★", starRating))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(width: 72, alignment: .trailing)
-                    .accessibilityHidden(true)
-            }
+            StarRatingInput(rating: $starRating)
 
             Toggle("Mark as favorite", isOn: $isFavorite)
+        }
+    }
+
+    private struct StarRatingInput: View {
+        @Binding var rating: Double
+
+        var body: some View {
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let stepWidth = width / 5
+                HStack(spacing: 6) {
+                    ForEach(0..<5, id: \.self) { index in
+                        Image(systemName: symbol(for: index))
+                            .foregroundColor(.yellow)
+                            .font(.system(size: 20, weight: .semibold))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let clamped = min(max(0, value.location.x), width)
+                            let raw = clamped / stepWidth
+                            let halfSteps = (raw * 2).rounded() / 2
+                            rating = min(5, max(0, halfSteps))
+                        }
+                )
+            }
+            .frame(height: 28)
+        }
+
+        private func symbol(for index: Int) -> String {
+            let threshold = rating - Double(index)
+            if threshold >= 1 { return "star.fill" }
+            if threshold >= 0.5 { return "star.leadinghalf.filled" }
+            return "star"
         }
     }
 
@@ -268,21 +269,30 @@ struct CreatePostView: View {
         }
     }
 
-    private var mediaSelectionSection: some View {
+    private var photoActionButtons: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Photos")
+            Text("Add Photos")
                 .font(.headline)
 
-            HStack {
+            HStack(spacing: 12) {
                 PhotosPicker(
                     selection: $selectedPhotos,
                     maxSelectionCount: 5,
                     matching: .images,
                     photoLibrary: .shared()
                 ) {
-                    Text("Select Images")
-                        .foregroundColor(.blue)
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 28, weight: .semibold))
+                        Text("Gallery")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(16)
                 }
+                .buttonStyle(.plain)
 
                 Button {
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -291,33 +301,45 @@ struct CreatePostView: View {
                         cameraUnavailableAlert = true
                     }
                 } label: {
-                    Label("Capture Photo", systemImage: "camera")
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 28, weight: .semibold))
+                        Text("Camera")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(16)
                 }
+                .buttonStyle(.plain)
             }
 
             if !selectedImages.isEmpty {
-                List {
-                    ForEach(selectedImages.indices, id: \.self) { index in
-                        VStack {
-                            Image(uiImage: selectedImages[index])
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 200)
-                                .cornerRadius(10)
-                            if isUploading && uploadProgress.indices.contains(index) {
-                                ProgressView(value: uploadProgress[index])
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(selectedImages.indices, id: \.self) { index in
+                            ZStack(alignment: .topTrailing) {
+                                Image(uiImage: selectedImages[index])
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 160, height: 160)
+                                    .clipped()
+                                    .cornerRadius(12)
+
+                                Button {
+                                    selectedImages.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.white)
+                                        .background(Color.black.opacity(0.6).clipShape(Circle()))
+                                }
+                                .padding(6)
                             }
                         }
                     }
-                    .onDelete { offsets in
-                        selectedImages.remove(atOffsets: offsets)
-                    }
-                    .onMove { indices, newOffset in
-                        selectedImages.move(fromOffsets: indices, toOffset: newOffset)
-                    }
+                    .padding(.vertical, 4)
                 }
-                .frame(height: 250)
-                .environment(\.editMode, $editMode)
             }
         }
     }
@@ -326,29 +348,9 @@ struct CreatePostView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Tag Users")
                 .font(.headline)
-
-            Picker("Tagging Mode", selection: $taggingMode) {
-                ForEach(TaggingMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            if taggingMode == .photo && !selectedImages.isEmpty {
-                Picker("Photo", selection: $selectedImageIndex) {
-                    ForEach(selectedImages.indices, id: \.self) { index in
-                        Text("Photo #\(index + 1)").tag(index)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Picker("Location", selection: $selectedLocation) {
-                    ForEach(TagLocation.allCases) { location in
-                        Text(location.rawValue).tag(location)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
+            Text("Tag collaborators for the whole post.")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
             TextField("Search users to tag", text: $tagSearchText)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -389,15 +391,9 @@ struct CreatePostView: View {
                                 Text("@\(tag.user.handle)")
                                     .font(.caption)
                                     .foregroundColor(.gray)
-                                if let index = tag.imageIndex {
-                                    Text("Photo #\(index + 1) · \(tag.location?.rawValue ?? "Custom")")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Text("Entire post")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
+                                Text("Entire post")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                             }
                             Spacer()
                             Button(role: .destructive) {
@@ -427,12 +423,7 @@ struct CreatePostView: View {
     }
 
     private func addTag(for user: AppUser) {
-        if taggingMode == .photo && selectedImages.isEmpty {
-            return
-        }
-        let location = taggingMode == .photo ? selectedLocation : nil
-        let imageIndex = taggingMode == .photo ? selectedImageIndex : nil
-        let newTag = PendingTag(user: user, imageIndex: imageIndex, location: location)
+        let newTag = PendingTag(user: user)
         pendingTags.append(newTag)
         tagSearchText = ""
         tagSearchResults = []
@@ -467,20 +458,7 @@ struct CreatePostView: View {
 
         let uniqueTaggedIDs = Array(Set(pendingTags.map { $0.user.id ?? "" }.filter { !$0.isEmpty }))
 
-        let photoTags: [Post.PhotoTag] = pendingTags.compactMap { (tag) -> Post.PhotoTag? in
-            guard let userID = tag.user.id else { return nil }
-            guard let index  = tag.imageIndex else { return nil }
-
-            // If Coordinates is a struct with x/y:
-            let coords = tag.location?.coordinates ?? (0.5, 0.5)
-            return Post.PhotoTag(
-                userID: userID,
-                imageIndex: index,
-                x: coords.0,
-                y: coords.1,
-                label: tag.user.displayName
-            )
-        }
+        let photoTags: [Post.PhotoTag] = []
 
         var extras: [String: String] = [:]
         if !ingredients.isEmpty {

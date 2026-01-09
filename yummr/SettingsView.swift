@@ -1,10 +1,13 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseCore
+import UIKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var auth: AuthService
+
+    private let authUIDelegate = SettingsAuthUIDelegate.shared
 
     @State private var appUser: AppUser?
     @State private var displayName: String = ""
@@ -36,6 +39,10 @@ struct SettingsView: View {
                 destructiveSection
             }
             .navigationTitle("Settings")
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissKeyboard()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -211,6 +218,13 @@ struct SettingsView: View {
 
     private var destructiveSection: some View {
         Section {
+            Button {
+                auth.signOut()
+                dismiss()
+            } label: {
+                Text("Log out")
+            }
+
             Button(role: .destructive) {
                 showDeleteConfirmation = true
             } label: {
@@ -384,7 +398,7 @@ struct SettingsView: View {
 
         isSendingCode = true
         phoneStatusMessage = "Sending…"
-        PhoneAuthProvider.provider().verifyPhoneNumber(phoneNumber, uiDelegate: nil) { verificationID, error in
+        PhoneAuthProvider.provider().verifyPhoneNumber(phoneNumber, uiDelegate: authUIDelegate) { verificationID, error in
             DispatchQueue.main.async {
                 self.isSendingCode = false
                 if let error = error {
@@ -454,5 +468,25 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+}
+
+private final class SettingsAuthUIDelegate: NSObject, AuthUIDelegate {
+    static let shared = SettingsAuthUIDelegate()
+
+    func presentationAnchor(for authUI: AuthUI, in scene: UIScene) -> UIWindow {
+        guard let windowScene = scene as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else {
+            return UIWindow()
+        }
+        return window
+    }
+
+    func presentationAnchor(for authUI: AuthUI) -> UIWindow {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else {
+            return UIWindow()
+        }
+        return window
     }
 }

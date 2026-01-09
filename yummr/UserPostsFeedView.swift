@@ -38,15 +38,15 @@ struct UserPostsFeedView: View {
                     .padding()
                 }
             }
-            .onChange(of: posts) { _ in
-                guard !hasScrolledToInitialPost,
-                      let targetID = initialPostID,
-                      posts.contains(where: { $0.stableIdentifier == targetID }) else { return }
-                withAnimation {
-                    proxy.scrollTo(targetID, anchor: .top)
-                }
-                hasScrolledToInitialPost = true
+        .onChange(of: posts.map { $0.stableIdentifier }) { _ in
+            guard !hasScrolledToInitialPost,
+                  let targetID = initialPostID,
+                  posts.contains(where: { $0.stableIdentifier == targetID }) else { return }
+            withAnimation {
+                proxy.scrollTo(targetID, anchor: .top)
             }
+            hasScrolledToInitialPost = true
+        }
         }
         .navigationTitle(title)
         .onAppear {
