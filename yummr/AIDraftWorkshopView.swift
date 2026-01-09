@@ -25,7 +25,7 @@ struct AIDraftWorkshopView: View {
     @State private var capturedReferenceImage: UIImage?
 
     private var aiButtonTitle: String {
-        lastGeneratedDate == nil ? "Draft with AI" : "Regenerate with AI"
+        lastGeneratedDate == nil ? "Auto Log with AI" : "Regenerate Auto Log"
     }
 
     private let ingredientColumns: [GridItem] = [GridItem(.adaptive(minimum: 120), spacing: 8)]
@@ -68,7 +68,7 @@ struct AIDraftWorkshopView: View {
             }
             .padding()
         }
-        .navigationTitle("AI Draft")
+        .navigationTitle("Auto Log")
         .navigationBarTitleDisplayMode(.inline)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -108,10 +108,10 @@ struct AIDraftWorkshopView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Workshop your post with AI")
+            Text("Auto-log your post with AI")
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Use voice notes, photos, and ingredients to generate a clean draft before heading back to the post composer.")
+            Text("Use voice notes and photos to generate a clean draft before heading back to the post composer.")
                 .font(.callout)
                 .foregroundColor(.secondary)
         }
@@ -119,9 +119,9 @@ struct AIDraftWorkshopView: View {
 
     private var aiDraftingControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("AI Drafting")
+            Text("Auto Log")
                 .font(.headline)
-            Text("Use your transcript, photos, and ingredients to draft a recipe.")
+            Text("Use your transcript and photos to auto-complete a recipe draft.")
                 .font(.callout)
                 .foregroundColor(.secondary)
 
