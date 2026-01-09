@@ -90,7 +90,7 @@ struct CreatePostView: View {
                             aiNotes: $aiNotes
                         )
                     } label: {
-                        Label("Draft with AI", systemImage: "wand.and.stars")
+                        Label("Auto Log with AI", systemImage: "wand.and.stars")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()

@@ -281,10 +281,23 @@ struct PostDetailView: View {
                     highlightMentions(in: comment.text)
                         .appTextStyle(.callout)
 
-                    if let timestamp = comment.timestamp {
-                        Text(timestamp.formatted(date: .abbreviated, time: .shortened))
-                            .appTextStyle(.caption2)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 12) {
+                        if let timestamp = comment.timestamp {
+                            Text(timestamp.formatted(date: .abbreviated, time: .shortened))
+                                .appTextStyle(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Button {
+                            toggleCommentLike(comment)
+                        } label: {
+                            Label(commentLikeLabel(for: comment),
+                                  systemImage: commentIsLiked(comment) ? "heart.fill" : "heart")
+                                .labelStyle(.titleAndIcon)
+                                .appTextStyle(.caption, weight: .medium)
+                                .foregroundColor(commentIsLiked(comment) ? .red : .secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, 6)
@@ -427,6 +440,8 @@ struct PostDetailView: View {
                     authorName: authorHandle,
                     parentCommentID: nil,
                     taggedUserIDs: taggedIDs,
+                    likedBy: [],
+                    likeCount: 0,
                     timestamp: Date()
                 )
 
@@ -436,6 +451,16 @@ struct PostDetailView: View {
                         newComment = ""
                         mentionSuggestions = []
                         mentionLookup = [:]
+                    }
+                    if livePost.authorID != user.uid {
+                        let message = "\(authorHandle) commented on your post"
+                        NotificationService.shared.createNotification(
+                            to: livePost.authorID,
+                            type: .comment,
+                            actorID: user.uid,
+                            message: message,
+                            postID: postID
+                        )
                     }
                 } catch {
                     print("Error posting comment: \(error)")
@@ -522,6 +547,30 @@ struct PostDetailView: View {
                 }
             }
         }
+    }
+
+    private func toggleCommentLike(_ comment: Comment) {
+        guard let postID = livePost.id ?? post.id,
+              let commentID = comment.id else { return }
+        CommentService.shared.toggleLike(
+            postID: postID,
+            commentID: commentID,
+            parentCommentID: comment.parentCommentID
+        ) { result in
+            if case .failure(let error) = result {
+                print("Failed to like comment: \(error)")
+            }
+        }
+    }
+
+    private func commentIsLiked(_ comment: Comment) -> Bool {
+        guard let uid = auth.currentUser?.uid else { return false }
+        return comment.resolvedLikedBy.contains(uid)
+    }
+
+    private func commentLikeLabel(for comment: Comment) -> String {
+        let count = comment.resolvedLikeCount
+        return count > 0 ? "\(count)" : "Like"
     }
 
     private func checkSaveState() {

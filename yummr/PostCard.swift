@@ -211,11 +211,22 @@ struct PostCard: View {
             Button {
                 showAllComments = true
             } label: {
-                Text("View all comments (\(commentCount))")
+                Text(commentPreviewLabel)
                     .appTextStyle(.footnote, weight: .semibold)
                     .foregroundColor(.accentColor)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var commentPreviewLabel: String {
+        switch commentCount {
+        case 1:
+            return "View 1 comment"
+        case let count where count > 1:
+            return "View all comments (\(count))"
+        default:
+            return "View comments"
         }
     }
 

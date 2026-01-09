@@ -148,6 +148,16 @@ struct AllCommentsView: View {
                         .foregroundColor(.secondary)
                 }
 
+                Button {
+                    toggleCommentLike(comment)
+                } label: {
+                    Label(commentLikeLabel(for: comment),
+                          systemImage: commentIsLiked(comment) ? "heart.fill" : "heart")
+                        .font(.caption)
+                        .foregroundColor(commentIsLiked(comment) ? .red : .secondary)
+                }
+                .buttonStyle(.plain)
+
                 Button("Reply") {
                     replyingTo = comment
                 }
@@ -286,6 +296,8 @@ struct AllCommentsView: View {
                     authorName: authorHandle,
                     parentCommentID: parentID,
                     taggedUserIDs: taggedIDs,
+                    likedBy: [],
+                    likeCount: 0,
                     timestamp: Date()
                 )
 
@@ -295,6 +307,16 @@ struct AllCommentsView: View {
                         newComment = ""
                         replyingTo = nil
                         mentionSuggestions = []
+                    }
+                    if post.authorID != uid {
+                        let message = "\(authorHandle) commented on your post"
+                        NotificationService.shared.createNotification(
+                            to: post.authorID,
+                            type: .comment,
+                            actorID: uid,
+                            message: message,
+                            postID: postID
+                        )
                     }
                 } catch {
                     print("Error posting comment: \(error)")
@@ -464,5 +486,29 @@ struct AllCommentsView: View {
                 .document(commentID)
                 .delete()
         }
+    }
+
+    private func toggleCommentLike(_ comment: Comment) {
+        guard let postID = post.id,
+              let commentID = comment.id else { return }
+        CommentService.shared.toggleLike(
+            postID: postID,
+            commentID: commentID,
+            parentCommentID: comment.parentCommentID
+        ) { result in
+            if case .failure(let error) = result {
+                print("Failed to like comment: \(error)")
+            }
+        }
+    }
+
+    private func commentIsLiked(_ comment: Comment) -> Bool {
+        guard let uid = auth.currentUser?.uid else { return false }
+        return comment.resolvedLikedBy.contains(uid)
+    }
+
+    private func commentLikeLabel(for comment: Comment) -> String {
+        let count = comment.resolvedLikeCount
+        return count > 0 ? "\(count)" : "Like"
     }
 }
