@@ -14,7 +14,13 @@ class PostService: ObservableObject {
     @Published var cachedTopPosts: [Post] = []
 
     func toggleLike(for post: Post, completion: @escaping (Result<Void, Error>) -> Void) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            completion(.failure(
+                NSError(domain: "AuthError", code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "User not logged in."])
+            ))
+            return
+        }
         guard let postID = post.id else {
             completion(.failure(
                 NSError(domain: "PostError", code: 0,
@@ -35,8 +41,9 @@ class PostService: ObservableObject {
 
             var likedBy = postDoc.data()?["likedBy"] as? [String] ?? []
             var likeCount = postDoc.data()?["likeCount"] as? Int ?? 0
+            let wasLiked = likedBy.contains(uid)
 
-            if likedBy.contains(uid) {
+            if wasLiked {
                 likedBy.removeAll { $0 == uid }
                 likeCount = max(0, likeCount - 1)
             } else {
@@ -49,12 +56,27 @@ class PostService: ObservableObject {
                 "likeCount": likeCount
             ], forDocument: postRef)
 
-            return nil
-        }) { _, error in
+            return wasLiked
+        }) { result, error in
             if let error = error {
                 completion(.failure(error))
             } else {
                 completion(.success(()))
+                let wasLiked = result as? Bool ?? true
+                if !wasLiked, post.authorID != uid {
+                    UserService.shared.fetchUser(withID: uid) { user in
+                        let actorName = HandleFormatter.normalizedHandleIfPresent(user?.handle)
+                            ?? HandleFormatter.normalizedHandle(from: user?.displayName ?? "Someone")
+                        let message = "\(actorName) liked your post"
+                        NotificationService.shared.createNotification(
+                            to: post.authorID,
+                            type: .like,
+                            actorID: uid,
+                            message: message,
+                            postID: post.id
+                        )
+                    }
+                }
             }
         }
     }

@@ -161,7 +161,13 @@ final class UserService: ObservableObject {
 
      
                 let lowercasedQuery = normalizedQuery.lowercased()
-                let users: [AppUser] = documents.compactMap { try? $0.data(as: AppUser.self) }
+                let users: [AppUser] = documents.compactMap { document in
+                    guard var user = try? document.data(as: AppUser.self) else { return nil }
+                    if user.id == nil {
+                        user.id = document.documentID
+                    }
+                    return user
+                }
                     .sorted { ($0.displayName.lowercased(), $0.handle.lowercased()) < ($1.displayName.lowercased(), $1.handle.lowercased()) }
                     .filter { user in
                         let handle = user.handle.lowercased()

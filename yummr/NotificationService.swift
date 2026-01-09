@@ -55,4 +55,50 @@ final class NotificationService: ObservableObject {
                 batch.commit()
             }
     }
+
+    func createNotification(
+        to recipientID: String,
+        type: AppNotification.Kind,
+        actorID: String,
+        message: String,
+        postID: String? = nil
+    ) {
+        guard recipientID != actorID else { return }
+
+        UserService.shared.fetchUser(withID: recipientID) { user in
+            let settings = user?.resolvedNotificationSettings ?? .default
+            if settings.mutedUserIDs?.contains(actorID) == true {
+                return
+            }
+
+            switch type {
+            case .like where settings.likes == false:
+                return
+            case .comment where settings.comments == false:
+                return
+            case .friendRequest where settings.friendRequests == false:
+                return
+            default:
+                break
+            }
+
+            let notification = AppNotification(
+                type: type,
+                actorID: actorID,
+                message: message,
+                postID: postID,
+                createdAt: Date(),
+                isRead: false
+            )
+
+            do {
+                _ = try self.db.collection("users")
+                    .document(recipientID)
+                    .collection("notifications")
+                    .addDocument(from: notification)
+            } catch {
+                print("Failed to create notification: \(error)")
+            }
+        }
+    }
 }

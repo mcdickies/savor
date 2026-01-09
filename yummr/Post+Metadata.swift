@@ -37,7 +37,7 @@ extension Post {
 
     var formattedCalories: String? {
         guard let calories = calorieEstimate else { return nil }
-        return "\(calories) kcal"
+        return "\(calories) calories"
     }
 
     var notesList: [String] {
