@@ -15,46 +15,28 @@ struct RootView: View {
 
     @StateObject var auth = AuthService()
     @State private var selectedTab: Tab = .feed
-    @State private var feedViewID = UUID()
-    @State private var searchViewID = UUID()
-    @State private var createViewID = UUID()
-    @State private var savedViewID = UUID()
-    @State private var profileViewID = UUID()
 
     var body: some View {
         Group {
             if auth.currentUser != nil {
-                TabView(selection: Binding(
-                    get: { selectedTab },
-                    set: { newValue in
-                        if selectedTab == newValue {
-                            resetView(for: newValue)
-                        }
-                        selectedTab = newValue
-                    }
-                )) {
+                TabView(selection: $selectedTab) {
                     FeedView()
-                        .id(feedViewID)
                         .tabItem { Label("Feed",    systemImage: "list.bullet") }
                         .tag(Tab.feed)
 
                     SearchView()
-                        .id(searchViewID)
                         .tabItem { Label("Search",  systemImage: "magnifyingglass") }
                         .tag(Tab.search)
 
                     CreatePostView()
-                        .id(createViewID)
                         .tabItem { Label("Create",  systemImage: "plus.circle") }
                         .tag(Tab.create)
 
                     SavedCollectionsView()
-                        .id(savedViewID)
                         .tabItem { Label("Saved", systemImage: "bookmark") }
                         .tag(Tab.saved)
 
                     ProfileView()
-                        .id(profileViewID)
                         .tabItem { Label("Profile", systemImage: "person.crop.circle") }
                         .tag(Tab.profile)
                 }
@@ -63,20 +45,5 @@ struct RootView: View {
             }
         }
         .environmentObject(auth)
-    }
-
-    private func resetView(for tab: Tab) {
-        switch tab {
-        case .feed:
-            feedViewID = UUID()
-        case .search:
-            searchViewID = UUID()
-        case .create:
-            createViewID = UUID()
-        case .saved:
-            savedViewID = UUID()
-        case .profile:
-            profileViewID = UUID()
-        }
     }
 }

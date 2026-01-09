@@ -211,11 +211,22 @@ struct PostCard: View {
             Button {
                 showAllComments = true
             } label: {
-                Text("View all comments (\(commentCount))")
+                Text(commentPreviewLabel)
                     .appTextStyle(.footnote, weight: .semibold)
                     .foregroundColor(.accentColor)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var commentPreviewLabel: String {
+        switch commentCount {
+        case 1:
+            return "View 1 comment"
+        case let count where count > 1:
+            return "View all comments (\(count))"
+        default:
+            return "View comments"
         }
     }
 
@@ -274,15 +285,6 @@ struct PostCard: View {
             }
         }
         .frame(height: UIScreen.main.bounds.width * 0.95)
-        .overlay(alignment: .topTrailing) {
-            if post.isFavorited {
-                Image(systemName: "bookmark.circle.fill")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundColor(.yellow)
-                    .padding(.trailing, 4)
-                    .padding(.top, 4)
-            }
-        }
     }
 
     private func tagOverlay(tag: Post.PhotoTag, size: CGSize) -> some View {
