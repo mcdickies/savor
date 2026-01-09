@@ -281,15 +281,6 @@ struct PostCard: View {
             }
         }
         .frame(height: UIScreen.main.bounds.width * 0.95)
-        .overlay(alignment: .topTrailing) {
-            if post.isFavorited {
-                Image(systemName: "bookmark.circle.fill")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundColor(.yellow)
-                    .padding(.trailing, 4)
-                    .padding(.top, 4)
-            }
-        }
     }
 
     private func tagOverlay(tag: Post.PhotoTag, size: CGSize) -> some View {

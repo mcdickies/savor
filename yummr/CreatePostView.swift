@@ -57,6 +57,7 @@ struct CreatePostView: View {
     @State private var showCameraPicker = false
     @State private var cameraUnavailableAlert = false
     @State private var capturedImage: UIImage?
+    @State private var showAutoLogSheet = false
 
     @State private var taggingMode: TaggingMode = .post
     @State private var selectedImageIndex = 0
@@ -108,19 +109,8 @@ struct CreatePostView: View {
                         }
                     }
 
-                    NavigationLink {
-                        AIDraftWorkshopView(
-                            title: $title,
-                            description: $description,
-                            recipe: $recipe,
-                            ingredients: $ingredients,
-                            selectedImages: $selectedImages,
-                            aiReferenceImages: $aiReferenceImages,
-                            audioTranscript: $audioTranscript,
-                            cookTime: $cookTime,
-                            calorieEstimate: $calorieEstimate,
-                            aiNotes: $aiNotes
-                        )
+                    Button {
+                        showAutoLogSheet = true
                     } label: {
                         Label("Auto Log with AI", systemImage: "wand.and.stars")
                             .font(.headline)
@@ -182,6 +172,20 @@ struct CreatePostView: View {
         }
         .sheet(isPresented: $showCameraPicker) {
             ImagePicker(image: $capturedImage, sourceType: .camera)
+        }
+        .sheet(isPresented: $showAutoLogSheet) {
+            AutoLogSheetView(
+                title: $title,
+                description: $description,
+                recipe: $recipe,
+                ingredients: $ingredients,
+                selectedImages: $selectedImages,
+                aiReferenceImages: $aiReferenceImages,
+                audioTranscript: $audioTranscript,
+                cookTime: $cookTime,
+                calorieEstimate: $calorieEstimate,
+                aiNotes: $aiNotes
+            )
         }
         .alert("Camera unavailable", isPresented: $cameraUnavailableAlert) {
             Button("OK", role: .cancel) { }

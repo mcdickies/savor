@@ -208,7 +208,13 @@ final class UserService: ObservableObject {
                 .whereField(FieldPath.documentID(), in: chunk)
                 .getDocuments { snapshot, _ in
                     if let documents = snapshot?.documents {
-                        let users = documents.compactMap { try? $0.data(as: AppUser.self) }
+                        let users = documents.compactMap { document in
+                            guard var user = try? document.data(as: AppUser.self) else { return nil }
+                            if user.id == nil {
+                                user.id = document.documentID
+                            }
+                            return user
+                        }
                         fetched.append(contentsOf: users)
                     }
                     group.leave()
@@ -362,7 +368,13 @@ final class UserService: ObservableObject {
             .whereField("privacySettings.allowContactDiscovery", isEqualTo: true)
             .limit(to: limit)
             .getDocuments { snapshot, _ in
-                let users = snapshot?.documents.compactMap { try? $0.data(as: AppUser.self) } ?? []
+                let users = snapshot?.documents.compactMap { document in
+                    guard var user = try? document.data(as: AppUser.self) else { return nil }
+                    if user.id == nil {
+                        user.id = document.documentID
+                    }
+                    return user
+                } ?? []
                 let filtered = users.filter { $0.id != uid }
                 completion(filtered)
             }

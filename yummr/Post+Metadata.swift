@@ -40,6 +40,13 @@ extension Post {
         return "\(calories) calories"
     }
 
+    var cleanedCookTime: String? {
+        guard let cookTime, !cookTime.isEmpty else { return nil }
+        let cleaned = strippingCreativeTags(from: cookTime)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     var notesList: [String] {
         let raw = extraFields?["notes"] ?? extraFields?["aiNotes"] ?? ""
         return parseList(from: raw)
@@ -83,7 +90,7 @@ extension Post {
     private func parseList(from string: String) -> [String] {
         string
             .components(separatedBy: CharacterSet(charactersIn: ",\n•"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { strippingCreativeTags(from: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 

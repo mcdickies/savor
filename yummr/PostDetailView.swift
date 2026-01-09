@@ -109,11 +109,6 @@ struct PostDetailView: View {
                 if let rating = livePost.starRating {
                     StarRatingView(rating: rating)
                 }
-                if livePost.isFavorited {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
-                        .font(.caption)
-                }
             }
 
             NavigationLink(destination: ProfileView(userID: livePost.authorID)) {
@@ -131,7 +126,7 @@ struct PostDetailView: View {
     }
 
     private var metaRow: some View {
-        let cookTime = livePost.cookTime?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cookTime = livePost.cleanedCookTime
         let calories = livePost.formattedCalories
         return HStack(spacing: 16) {
             if let cookTime, !cookTime.isEmpty {
