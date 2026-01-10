@@ -208,7 +208,7 @@ final class UserService: ObservableObject {
                 .whereField(FieldPath.documentID(), in: chunk)
                 .getDocuments { snapshot, _ in
                     if let documents = snapshot?.documents {
-                        let users = documents.compactMap { document in
+                        let users: [AppUser] = documents.compactMap { document in
                             guard var user = try? document.data(as: AppUser.self) else { return nil }
                             if user.id == nil {
                                 user.id = document.documentID
@@ -368,7 +368,7 @@ final class UserService: ObservableObject {
             .whereField("privacySettings.allowContactDiscovery", isEqualTo: true)
             .limit(to: limit)
             .getDocuments { snapshot, _ in
-                let users = snapshot?.documents.compactMap { document in
+                let users: [AppUser] = snapshot?.documents.compactMap { document in
                     guard var user = try? document.data(as: AppUser.self) else { return nil }
                     if user.id == nil {
                         user.id = document.documentID
