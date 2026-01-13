@@ -3,45 +3,15 @@ import FirebaseFirestore
 
 struct SavedCollectionsView: View {
     @EnvironmentObject var auth: AuthService
-    @State private var collections: [AppUser.SavedCollection] = []
-    @State private var selectedCollectionID: String = "all"
+    @State private var savedCollection: AppUser.SavedCollection?
     @State private var listener: ListenerRegistration?
     @State private var posts: [Post] = []
-    @State private var showNewCollectionPrompt = false
-    @State private var newCollectionName = ""
 
     private let grid = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(collections) { collection in
-                            Button {
-                                selectedCollectionID = collection.resolvedID
-                                loadPosts(for: collection)
-                            } label: {
-                                Text(collection.title)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(selectedCollectionID == collection.resolvedID ? Color.accentColor.opacity(0.2) : Color(UIColor.systemGray6))
-                                    .cornerRadius(16)
-                            }
-                        }
-
-                        Button {
-                            showNewCollectionPrompt = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .padding()
-                                .background(Color(UIColor.systemGray6))
-                                .cornerRadius(16)
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-
                 if posts.isEmpty {
                     Spacer()
                     Text("No saved posts yet.")
@@ -71,25 +41,21 @@ struct SavedCollectionsView: View {
             .navigationTitle("Saves")
             .onAppear(perform: startListening)
             .onDisappear(perform: stopListening)
-            .alert("New Collection", isPresented: $showNewCollectionPrompt) {
-                TextField("Title", text: $newCollectionName)
-                Button("Create") { createCollection() }
-                Button("Cancel", role: .cancel) { newCollectionName = "" }
-            }
         }
     }
 
     private func startListening() {
         guard let uid = auth.currentUser?.uid else { return }
         listener?.remove()
+        SavedService.shared.ensureDefaultCollection(for: uid)
         listener = SavedService.shared.observeCollections(for: uid) { collections in
             DispatchQueue.main.async {
-                self.collections = collections
-                if !collections.contains(where: { $0.resolvedID == selectedCollectionID }) {
-                    selectedCollectionID = collections.first?.resolvedID ?? "all"
-                }
-                if let selected = collections.first(where: { $0.resolvedID == selectedCollectionID }) {
+                let selected = collections.first(where: { $0.resolvedID == "all" }) ?? collections.first
+                savedCollection = selected
+                if let selected {
                     loadPosts(for: selected)
+                } else {
+                    posts = []
                 }
             }
         }
@@ -128,13 +94,6 @@ struct SavedCollectionsView: View {
         }
     }
 
-    private func createCollection() {
-        guard let uid = auth.currentUser?.uid else { return }
-        let trimmed = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        SavedService.shared.createCollection(uid: uid, title: trimmed)
-        newCollectionName = ""
-    }
 }
 
 private extension Array {

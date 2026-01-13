@@ -3,38 +3,9 @@ import PhotosUI
 import UIKit
 
 struct CreatePostView: View {
-    enum TaggingMode: String, CaseIterable, Identifiable {
-        case post = "Entire Post"
-        case photo = "Specific Photo"
-
-        var id: String { rawValue }
-    }
-
-    enum TagLocation: String, CaseIterable, Identifiable {
-        case center = "Center"
-        case topLeft = "Top Left"
-        case topRight = "Top Right"
-        case bottomLeft = "Bottom Left"
-        case bottomRight = "Bottom Right"
-
-        var id: String { rawValue }
-
-        var coordinates: (x: Double, y: Double) {
-            switch self {
-            case .center: return (0.5, 0.5)
-            case .topLeft: return (0.2, 0.2)
-            case .topRight: return (0.8, 0.2)
-            case .bottomLeft: return (0.2, 0.8)
-            case .bottomRight: return (0.8, 0.8)
-            }
-        }
-    }
-
     struct PendingTag: Identifiable {
         let id = UUID()
         let user: AppUser
-        var imageIndex: Int?
-        var location: TagLocation?
     }
 
     @State private var title = ""
@@ -59,13 +30,12 @@ struct CreatePostView: View {
     @State private var capturedImage: UIImage?
     @State private var showAutoLogSheet = false
 
-    @State private var taggingMode: TaggingMode = .post
-    @State private var selectedImageIndex = 0
-    @State private var selectedLocation: TagLocation = .center
     @State private var tagSearchText = ""
     @State private var tagSearchResults: [AppUser] = []
     @State private var pendingTags: [PendingTag] = []
     @State private var audioTranscript: String = ""
+    @State private var youtubeURL: String = ""
+    @State private var youtubeTranscript: String = ""
     @State private var aiNotes: [String] = []
 
     var body: some View {
@@ -182,6 +152,8 @@ struct CreatePostView: View {
                 selectedImages: $selectedImages,
                 aiReferenceImages: $aiReferenceImages,
                 audioTranscript: $audioTranscript,
+                youtubeURL: $youtubeURL,
+                youtubeTranscript: $youtubeTranscript,
                 cookTime: $cookTime,
                 calorieEstimate: $calorieEstimate,
                 aiNotes: $aiNotes
@@ -209,11 +181,6 @@ struct CreatePostView: View {
             if let image = image {
                 selectedImages.append(image)
                 capturedImage = nil
-            }
-        }
-        .onChange(of: selectedImages) { images in
-            if selectedImageIndex >= images.count {
-                selectedImageIndex = max(0, images.count - 1)
             }
         }
         .onChange(of: tagSearchText) { newValue in
@@ -385,29 +352,6 @@ struct CreatePostView: View {
             Text("Tag Users")
                 .font(.headline)
 
-            Picker("Tagging Mode", selection: $taggingMode) {
-                ForEach(TaggingMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            if taggingMode == .photo && !selectedImages.isEmpty {
-                Picker("Photo", selection: $selectedImageIndex) {
-                    ForEach(selectedImages.indices, id: \.self) { index in
-                        Text("Photo #\(index + 1)").tag(index)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Picker("Location", selection: $selectedLocation) {
-                    ForEach(TagLocation.allCases) { location in
-                        Text(location.rawValue).tag(location)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
             TextField("Search users to tag", text: $tagSearchText)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
@@ -447,15 +391,9 @@ struct CreatePostView: View {
                                 Text("@\(tag.user.handle)")
                                     .font(.caption)
                                     .foregroundColor(.gray)
-                                if let index = tag.imageIndex {
-                                    Text("Photo #\(index + 1) · \(tag.location?.rawValue ?? "Custom")")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Text("Entire post")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
+                                Text("Tagged")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                             }
                             Spacer()
                             Button(role: .destructive) {
@@ -485,12 +423,7 @@ struct CreatePostView: View {
     }
 
     private func addTag(for user: AppUser) {
-        if taggingMode == .photo && selectedImages.isEmpty {
-            return
-        }
-        let location = taggingMode == .photo ? selectedLocation : nil
-        let imageIndex = taggingMode == .photo ? selectedImageIndex : nil
-        let newTag = PendingTag(user: user, imageIndex: imageIndex, location: location)
+        let newTag = PendingTag(user: user)
         pendingTags.append(newTag)
         tagSearchText = ""
         tagSearchResults = []
@@ -525,20 +458,7 @@ struct CreatePostView: View {
 
         let uniqueTaggedIDs = Array(Set(pendingTags.map { $0.user.id ?? "" }.filter { !$0.isEmpty }))
 
-        let photoTags: [Post.PhotoTag] = pendingTags.compactMap { (tag) -> Post.PhotoTag? in
-            guard let userID = tag.user.id else { return nil }
-            guard let index  = tag.imageIndex else { return nil }
-
-            // If Coordinates is a struct with x/y:
-            let coords = tag.location?.coordinates ?? (0.5, 0.5)
-            return Post.PhotoTag(
-                userID: userID,
-                imageIndex: index,
-                x: coords.0,
-                y: coords.1,
-                label: tag.user.displayName
-            )
-        }
+        let photoTags: [Post.PhotoTag] = []
 
         var extras: [String: String] = [:]
         if !ingredients.isEmpty {
@@ -547,6 +467,14 @@ struct CreatePostView: View {
         let trimmedTranscript = audioTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedTranscript.isEmpty {
             extras["aiVoiceTranscript"] = trimmedTranscript
+        }
+        let trimmedYoutubeURL = youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedYoutubeURL.isEmpty {
+            extras["youtubeLink"] = trimmedYoutubeURL
+        }
+        let trimmedYoutubeTranscript = youtubeTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedYoutubeTranscript.isEmpty {
+            extras["youtubeTranscript"] = trimmedYoutubeTranscript
         }
 
         let trimmedCalories = calorieEstimate.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -601,6 +529,8 @@ struct CreatePostView: View {
                 selectedImages = []
                 selectedPhotos = []
                 audioTranscript = ""
+                youtubeURL = ""
+                youtubeTranscript = ""
                 aiReferenceImages = []
                 calorieEstimate = ""
                 starRating = 0

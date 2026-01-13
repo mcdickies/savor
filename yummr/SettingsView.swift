@@ -29,7 +29,6 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 profileSection
-                phoneSection
                 notificationsSection
                 privacySection
                 aiSection

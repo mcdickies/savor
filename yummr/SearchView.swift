@@ -15,14 +15,8 @@ struct SearchView: View {
     @State private var userResults: [AppUser] = []
     @State private var postResults: [Post] = []
     @State private var contactSuggestions: [AppUser] = []
-    @State private var userOnlyMode = false
-    @State private var friendIDs: Set<String> = []
-    @State private var pendingRequestIDs: Set<String> = []
     @State private var selectedProfileID: String?
     @EnvironmentObject var auth: AuthService
-
-    @State private var friendListener: ListenerRegistration?
-    @State private var requestListener: ListenerRegistration?
 
     private let badges = ["Something new to try", "Something you might like", "Celebrity"]
 
@@ -70,13 +64,12 @@ struct SearchView: View {
                                     HStack {
                                         userRowButton(for: user)
                                         Spacer()
-                                        friendActionButton(for: user)
                                     }
                                 }
                             }
                         }
 
-                        if !userOnlyMode && !postResults.isEmpty {
+                        if !postResults.isEmpty {
                             Section("Recipes") {
                                 ForEach(postResults) { post in
                                     NavigationLink(destination: PostDetailView(post: post)) {
@@ -129,39 +122,22 @@ struct SearchView: View {
         }
         .onAppear(perform: loadRecommendations)
         .onAppear(perform: startFriendListeners)
-        .onDisappear(perform: stopFriendListeners)
         .onChange(of: searchText) { newValue in
             performSearch(query: newValue)
-        }
-        .onChange(of: userOnlyMode) { _ in
-            performSearch(query: searchText)
         }
     }
 
     private var searchBar: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 12) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                    TextField(userOnlyMode ? "Search users" : "Search users, recipes, and ingredients", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                }
-                .padding(12)
-                .background(Color(UIColor.systemGray6))
-                .cornerRadius(12)
-                .frame(width: geometry.size.width * 0.8)
-
-                Button {
-                    userOnlyMode.toggle()
-                } label: {
-                    Image(systemName: userOnlyMode ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.plus")
-                        .font(.title3)
-                        .foregroundColor(userOnlyMode ? .accentColor : .secondary)
-                }
-                .accessibilityLabel("Toggle user search")
-            }
-            .padding(.horizontal)
+        HStack {
+            Image(systemName: "magnifyingglass")
+            TextField("Search users, recipes, and ingredients", text: $searchText)
+                .textFieldStyle(PlainTextFieldStyle())
         }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+        .background(Color(UIColor.systemGray6))
+        .cornerRadius(12)
+        .padding(.horizontal)
         .frame(height: 56)
     }
 
@@ -180,11 +156,7 @@ struct SearchView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(contactSuggestions, id: \.handle) { user in
-                        VStack(spacing: 8) {
-                            suggestionCard(for: user)
-                            friendActionButton(for: user)
-                                .font(.caption)
-                        }
+                        suggestionCard(for: user)
                     }
                 }
                 .padding(.horizontal)
@@ -194,11 +166,11 @@ struct SearchView: View {
 
     private func loadRecommendations() {
         if !PostService.shared.cachedTopPosts.isEmpty {
-            recommendedPosts = PostService.shared.cachedTopPosts
+            recommendedPosts = Array(PostService.shared.cachedTopPosts.prefix(8))
             return
         }
-        PostService.shared.preloadTopPosts(limit: 6) {
-            recommendedPosts = PostService.shared.cachedTopPosts
+        PostService.shared.preloadTopPosts(limit: 8) {
+            recommendedPosts = Array(PostService.shared.cachedTopPosts.prefix(8))
         }
     }
 
@@ -216,65 +188,21 @@ struct SearchView: View {
             }
         }
 
-        if userOnlyMode {
-            postResults = []
-        } else {
-            PostService.shared.searchPosts(matching: trimmed) { posts in
-                DispatchQueue.main.async {
-                    self.postResults = posts.sorted { $0.likeCount > $1.likeCount }
-                }
+        PostService.shared.searchPosts(matching: trimmed, limit: 8) { posts in
+            DispatchQueue.main.async {
+                self.postResults = posts
+                    .sorted { $0.likeCount > $1.likeCount }
+                    .prefix(8)
+                    .map { $0 }
             }
         }
     }
 
     private func startFriendListeners() {
         guard let uid = auth.currentUser?.uid else { return }
-        friendListener?.remove()
-        requestListener?.remove()
-        friendListener = FriendService.shared.observeFriendIDs(for: uid) { ids in
-            DispatchQueue.main.async {
-                friendIDs = Set(ids)
-            }
-        }
-        requestListener = FriendService.shared.observeIncomingRequests(for: uid) { ids in
-            DispatchQueue.main.async {
-                pendingRequestIDs = Set(ids)
-            }
-        }
         UserService.shared.fetchContactSuggestions(for: uid) { users in
             DispatchQueue.main.async {
                 contactSuggestions = users
-            }
-        }
-    }
-
-    private func stopFriendListeners() {
-        friendListener?.remove()
-        requestListener?.remove()
-    }
-
-    private func friendActionButton(for user: AppUser) -> some View {
-        Group {
-            if user.id == auth.currentUser?.uid {
-                Text("You")
-                    .foregroundColor(.secondary)
-            } else if let id = user.id, friendIDs.contains(id) {
-                Label("Friends", systemImage: "checkmark.circle")
-                    .foregroundColor(.green)
-            } else if let id = user.id, pendingRequestIDs.contains(id) {
-                Label("Requested", systemImage: "hourglass")
-                    .foregroundColor(.orange)
-            } else if let id = user.id {
-                Button("Add Friend") {
-                    FriendService.shared.sendFriendRequest(to: id) { error in
-                        if error == nil {
-                            DispatchQueue.main.async {
-                                pendingRequestIDs.insert(id)
-                            }
-                        }
-                    }
-                }
-                .buttonStyle(.bordered)
             }
         }
     }
