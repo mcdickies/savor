@@ -311,19 +311,19 @@ struct AutoLogDraftState {
         }
 
         let cleanedIngredients = (draft.ingredients ?? [])
-            .map { stripCreativeTags($0) }
+            .map { Self.stripCreativeTags($0) }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         let cleanedNotes = (draft.notes ?? [])
-            .map { stripCreativeTags($0) }
+            .map { Self.stripCreativeTags($0) }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        self.title = stripCreativeTags(draft.title ?? "")
-        self.description = stripCreativeTags(draft.description ?? "")
-        self.recipeText = stripCreativeTags(recipeText)
-        self.cookTime = stripCreativeTags(draft.cookTime ?? "")
+        self.title = Self.stripCreativeTags(draft.title ?? "")
+        self.description = Self.stripCreativeTags(draft.description ?? "")
+        self.recipeText = Self.stripCreativeTags(recipeText)
+        self.cookTime = Self.stripCreativeTags(draft.cookTime ?? "")
         if let calories = draft.calorieEstimate, calories > 0 {
             self.calorieEstimate = "\(calories)"
         } else {
