@@ -67,6 +67,7 @@ struct PostCard: View {
             fetchTaggedUsers()
             checkSaveState()
             fetchAuthor()
+            refreshLikeState()
         }
         .sheet(isPresented: $isShareSheetPresented) {
             ShareSheet(activityItems: shareItems)
@@ -481,5 +482,10 @@ struct PostCard: View {
                 isProcessingLike = false
             }
         }
+    }
+
+    private func refreshLikeState() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        isLiked = post.likedBy.contains(uid)
     }
 }
