@@ -10,6 +10,9 @@ struct AutoLogSheetView: View {
     @Binding var selectedImages: [UIImage]
     @Binding var aiReferenceImages: [UIImage]
     @Binding var audioTranscript: String
+    @Binding var youtubeURL: String
+    @Binding var youtubeTranscript: String
+    @Binding var youtubeTitle: String
     @Binding var cookTime: String
     @Binding var calorieEstimate: String
     @Binding var aiNotes: [String]
@@ -22,6 +25,8 @@ struct AutoLogSheetView: View {
     @State private var capturedReferenceImage: UIImage?
     @State private var isDrafting = false
     @State private var errorMessage: String?
+    @State private var isFetchingYouTube = false
+    @State private var youtubeErrorMessage: String?
     @State private var draftState: AutoLogDraftState?
     @State private var showDraftReview = false
 
@@ -38,6 +43,7 @@ struct AutoLogSheetView: View {
                         .foregroundColor(.secondary)
 
                     voiceSection
+                    youtubeSection
                     referencePhotosSection
 
                     Button {
@@ -56,6 +62,10 @@ struct AutoLogSheetView: View {
                     }
                 }
                 .padding()
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissKeyboard()
             }
             .navigationTitle("Auto Log")
             .navigationBarTitleDisplayMode(.inline)
@@ -222,6 +232,54 @@ struct AutoLogSheetView: View {
         .cornerRadius(12)
     }
 
+    private var youtubeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("YouTube Transcript")
+                .font(.headline)
+
+            TextField("Paste a YouTube link", text: $youtubeURL)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            Button {
+                fetchYouTubeTranscript()
+            } label: {
+                HStack {
+                    if isFetchingYouTube {
+                        ProgressView()
+                    }
+                    Text(isFetchingYouTube ? "Fetching transcript..." : "Fetch transcript")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isFetchingYouTube || youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if !youtubeTranscript.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !youtubeTitle.isEmpty {
+                        Text("Video: \(youtubeTitle)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Text("Transcript ready (\(youtubeTranscript.split(separator: " ").count) words)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if let youtubeErrorMessage {
+                Text(youtubeErrorMessage)
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
     private func requestAIDraft() {
         Task {
             await performDraftRequest()
@@ -235,13 +293,19 @@ struct AutoLogSheetView: View {
         errorMessage = nil
 
         do {
+            let combinedTranscript = [audioTranscript, youtubeTranscript]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            let trimmedYouTubeURL = youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let customPrompt = trimmedYouTubeURL.isEmpty ? "" : "Source video: \(trimmedYouTubeURL)"
             let draft = try await AIRecipeService.shared.generateDraft(
                 currentTitle: title,
                 currentDescription: description,
                 currentRecipe: recipe.plainText,
-                transcript: audioTranscript,
+                transcript: combinedTranscript,
                 capturedIdeas: [],
-                customPrompt: "",
+                customPrompt: customPrompt,
                 ingredients: ingredients,
                 images: selectedImages,
                 referenceImages: aiReferenceImages
@@ -259,6 +323,29 @@ struct AutoLogSheetView: View {
         isDrafting = false
     }
 
+    private func fetchYouTubeTranscript() {
+        guard !isFetchingYouTube else { return }
+        let trimmed = youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isFetchingYouTube = true
+        youtubeErrorMessage = nil
+
+        Task {
+            defer { isFetchingYouTube = false }
+            do {
+                let payload = try await YouTubeTranscriptService.fetchTranscript(for: trimmed)
+                await MainActor.run {
+                    youtubeTranscript = payload.transcript
+                    youtubeTitle = payload.title
+                }
+            } catch {
+                await MainActor.run {
+                    youtubeErrorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func applyDraft(_ draft: AutoLogDraftState) {
         title = draft.title
         description = draft.description
@@ -274,6 +361,71 @@ struct AutoLogSheetView: View {
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
         return String(format: "%01d:%02d", minutes, seconds)
+    }
+}
+
+private enum YouTubeTranscriptService {
+    struct TranscriptLine: Decodable {
+        let text: String
+    }
+
+    struct TranscriptPayload {
+        let transcript: String
+        let title: String
+    }
+
+    private struct OEmbedResponse: Decodable {
+        let title: String
+    }
+
+    static func fetchTranscript(for urlString: String) async throws -> TranscriptPayload {
+        guard let encoded = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://youtubetranscript.com/?format=json&url=\(encoded)") else {
+            throw AIRecipeService.ServiceError.invalidURL
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw AIRecipeService.ServiceError.invalidResponse
+        }
+
+        let transcript: String
+        if let lines = try? JSONDecoder().decode([TranscriptLine].self, from: data) {
+            let combined = lines.map(\.text).joined(separator: " ")
+            let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { throw AIRecipeService.ServiceError.emptyResponse }
+            transcript = trimmed
+        } else if let fallback = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !fallback.isEmpty {
+            transcript = fallback
+        } else {
+            throw AIRecipeService.ServiceError.emptyResponse
+        }
+
+        let title = await fetchYouTubeTitle(for: urlString)
+        return TranscriptPayload(transcript: transcript, title: title)
+    }
+
+    private static func fetchYouTubeTitle(for urlString: String) async -> String {
+        guard let encoded = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://www.youtube.com/oembed?format=json&url=\(encoded)") else {
+            return "YouTube"
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<300).contains(httpResponse.statusCode),
+                  let payload = try? JSONDecoder().decode(OEmbedResponse.self, from: data) else {
+                return "YouTube"
+            }
+            let trimmed = payload.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "YouTube" : trimmed
+        } catch {
+            return "YouTube"
+        }
     }
 }
 
@@ -311,19 +463,19 @@ struct AutoLogDraftState {
         }
 
         let cleanedIngredients = (draft.ingredients ?? [])
-            .map { stripCreativeTags($0) }
+            .map { Self.stripCreativeTags($0) }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         let cleanedNotes = (draft.notes ?? [])
-            .map { stripCreativeTags($0) }
+            .map { Self.stripCreativeTags($0) }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        self.title = stripCreativeTags(draft.title ?? "")
-        self.description = stripCreativeTags(draft.description ?? "")
-        self.recipeText = stripCreativeTags(recipeText)
-        self.cookTime = stripCreativeTags(draft.cookTime ?? "")
+        self.title = Self.stripCreativeTags(draft.title ?? "")
+        self.description = Self.stripCreativeTags(draft.description ?? "")
+        self.recipeText = Self.stripCreativeTags(recipeText)
+        self.cookTime = Self.stripCreativeTags(draft.cookTime ?? "")
         if let calories = draft.calorieEstimate, calories > 0 {
             self.calorieEstimate = "\(calories)"
         } else {

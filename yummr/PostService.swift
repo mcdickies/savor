@@ -255,7 +255,7 @@ class PostService: ObservableObject {
         }
     }
 
-    func preloadTopPosts(limit: Int = 5, completion: (() -> Void)? = nil) {
+    func preloadTopPosts(limit: Int = 8, completion: (() -> Void)? = nil) {
         db.collection("posts")
             .order(by: "timestamp", descending: true)
             .limit(to: limit)
@@ -463,7 +463,7 @@ private extension PostService {
             case ")":
                 depth = max(0, depth - 1)
                 current.append(character)
-            case ",", "\n", "•":
+            case ",", "\n":
                 if depth == 0 {
                     let candidate = current.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !candidate.isEmpty {

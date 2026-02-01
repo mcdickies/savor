@@ -6,6 +6,7 @@ struct UserPostsFeedView: View {
     let authorID: String
     var authorName: String?
     var initialPostID: String? = nil
+    var sourcePosts: [Post]? = nil
 
     @State private var posts: [Post] = []
     @State private var isLoading = true
@@ -51,7 +52,12 @@ struct UserPostsFeedView: View {
         .navigationTitle(title)
         .onAppear {
             hasScrolledToInitialPost = false
-            startListeningForPosts()
+            if let sourcePosts {
+                posts = sourcePosts
+                isLoading = false
+            } else {
+                startListeningForPosts()
+            }
         }
         .onDisappear {
             listener?.remove()

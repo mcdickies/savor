@@ -101,23 +101,27 @@ struct ProfileView: View {
                     .padding(.horizontal)
 
                     profilePostGrid
+        }
+        .padding(.bottom, 24)
+    }
+    .navigationTitle(profileUser?.displayName ?? "Profile")
+    .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonDisplayMode(.minimal)
+    .tint(.primary)
+    .toolbar {
+        if isCurrentUser {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape.fill")
+                        .foregroundColor(.black)
                 }
-                .padding(.bottom, 24)
-            }
-            .navigationTitle(profileUser?.displayName ?? "Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if isCurrentUser {
-                    ToolbarItemGroup(placement: .navigationBarTrailing) {
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape")
-                        }
-                        Button(action: { showImagePicker = true }) {
-                            Image(systemName: "pencil")
-                        }
-                    }
+                Button(action: { showImagePicker = true }) {
+                    Image(systemName: "pencil.circle.fill")
+                        .foregroundColor(.black)
                 }
             }
+        }
+    }
         }
         .onAppear {
             loadProfileData()
@@ -229,7 +233,7 @@ struct ProfileView: View {
                     if isCurrentUser {
                         Button(action: { showImagePicker = true }) {
                             Image(systemName: "pencil.circle.fill")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.black)
                                 .background(Color.white.clipShape(Circle()))
                         }
                         .offset(x: 4, y: 4)
@@ -414,7 +418,8 @@ struct ProfileView: View {
                 destination: UserPostsFeedView(
                     authorID: userID,
                     authorName: profileUser?.displayName,
-                    initialPostID: selectedPostID
+                    initialPostID: selectedPostID,
+                    sourcePosts: selectedTab == .tagged ? taggedPosts : nil
                 ),
                 isActive: Binding(
                     get: { isShowingUserFeed },
