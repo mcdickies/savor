@@ -24,6 +24,22 @@ final class SavedService: ObservableObject {
             }
     }
 
+    func observeCollection(for uid: String,
+                           collectionID: String,
+                           listener: @escaping (AppUser.SavedCollection?) -> Void) -> ListenerRegistration {
+        db.collection("users")
+            .document(uid)
+            .collection("collections")
+            .document(collectionID)
+            .addSnapshotListener { snapshot, _ in
+                let collection = try? snapshot?.data(as: AppUser.SavedCollection.self)
+                if collection == nil {
+                    self.ensureDefaultCollection(for: uid)
+                }
+                listener(collection)
+            }
+    }
+
     func ensureDefaultCollection(for uid: String) {
         db.collection("users")
             .document(uid)

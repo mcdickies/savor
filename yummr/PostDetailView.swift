@@ -45,8 +45,19 @@ struct PostDetailView: View {
                         .foregroundColor(.primary)
                 }
                 metaRow
-                if !livePost.notesList.isEmpty {
-                    infoSection(title: "Notes", items: livePost.notesList)
+                if !livePost.notesList.isEmpty || livePost.youtubeLink != nil {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if !livePost.notesList.isEmpty {
+                            infoSection(title: "Notes", items: livePost.notesList)
+                        }
+                        if let youtubeLink = livePost.youtubeLink,
+                           let url = URL(string: youtubeLink) {
+                            let title = livePost.youtubeTitle ?? "YouTube"
+                            Link("YouTube: \(title)", destination: url)
+                                .appTextStyle(.subheadline, weight: .semibold)
+                                .foregroundColor(.blue)
+                        }
+                    }
                 }
                 if !livePost.ingredientList.isEmpty {
                     infoSection(title: "Ingredients", items: livePost.ingredientList)
@@ -64,6 +75,8 @@ struct PostDetailView: View {
         }
         .navigationTitle(livePost.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonDisplayMode(.minimal)
+        .tint(.primary)
         .onAppear {
             listenToPost()
             listenToComments()

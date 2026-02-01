@@ -22,16 +22,28 @@ struct FeedView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 16) {
-                    ForEach(posts) { post in
-                        NavigationLink(destination: PostDetailView(post: post)) {
-                            PostCard(post: post)
-                        }
-                        .buttonStyle(.plain)
+                if posts.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("No posts yet.")
+                            .font(.headline)
+                        Text("Add friends or share your first post to get started.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 80)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(posts) { post in
+                            NavigationLink(destination: PostDetailView(post: post)) {
+                                PostCard(post: post)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 12)
             }
             .navigationTitle("The Feed")
             .navigationBarTitleDisplayMode(.large)
@@ -40,7 +52,8 @@ struct FeedView: View {
                     Button {
                         showNotifications = true
                     } label: {
-                        Image(systemName: "bell")
+                        Image(systemName: "bell.fill")
+                            .foregroundColor(.black)
                     }
                 }
             }

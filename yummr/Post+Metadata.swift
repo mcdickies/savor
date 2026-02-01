@@ -52,6 +52,18 @@ extension Post {
         return parseList(from: raw)
     }
 
+    var youtubeLink: String? {
+        guard let link = extraFields?["youtubeLink"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !link.isEmpty else { return nil }
+        return link
+    }
+
+    var youtubeTitle: String? {
+        guard let title = extraFields?["youtubeTitle"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty else { return nil }
+        return title
+    }
+
     var ingredientList: [String] {
         guard let raw = extraFields?["ingredients"] else { return [] }
         return parseList(from: raw)
@@ -89,7 +101,7 @@ extension Post {
 
     private func parseList(from string: String) -> [String] {
         string
-            .components(separatedBy: CharacterSet(charactersIn: ",\n•"))
+            .components(separatedBy: CharacterSet(charactersIn: ",\n"))
             .map { strippingCreativeTags(from: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }

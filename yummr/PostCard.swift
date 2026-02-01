@@ -51,22 +51,14 @@ struct PostCard: View {
                 commentPreview
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator).opacity(0.2), lineWidth: 1)
-        )
         .onAppear {
             fetchCommentsPreview()
             fetchTaggedUsers()
             checkSaveState()
             fetchAuthor()
+            refreshLikeState()
         }
         .sheet(isPresented: $isShareSheetPresented) {
             ShareSheet(activityItems: shareItems)
@@ -481,5 +473,10 @@ struct PostCard: View {
                 isProcessingLike = false
             }
         }
+    }
+
+    private func refreshLikeState() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        isLiked = post.likedBy.contains(uid)
     }
 }

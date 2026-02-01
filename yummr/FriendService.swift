@@ -153,6 +153,17 @@ final class FriendService: ObservableObject {
         batch.commit { error in
             if error == nil {
                 self.incrementFriendCounts(for: [currentUID, targetUID], delta: 1)
+                UserService.shared.fetchUser(withID: currentUID) { user in
+                    let actorName = HandleFormatter.normalizedHandleIfPresent(user?.handle)
+                        ?? HandleFormatter.normalizedHandle(from: user?.displayName ?? "Someone")
+                    let message = "\(actorName) followed you"
+                    NotificationService.shared.createNotification(
+                        to: targetUID,
+                        type: .friendRequest,
+                        actorID: currentUID,
+                        message: message
+                    )
+                }
             }
             completion?(error)
         }

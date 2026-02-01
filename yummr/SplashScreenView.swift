@@ -13,15 +13,13 @@ struct SplashScreenView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color.orange, Color.pink],
-                           startPoint: .topLeading,
-                           endPoint: .bottomTrailing)
+            Color(UIColor.systemGray6)
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                Text("Savor. Cook more.")
+                Text("Savor.")
                     .font(.largeTitle.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(.black)
                     .opacity(fadeIn ? 1 : 0.3)
                     .scaleEffect(fadeIn ? 1 : 0.95)
                     .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true),
@@ -29,7 +27,7 @@ struct SplashScreenView: View {
 
                 ProgressView()
                     .progressViewStyle(.circular)
-                    .tint(.white)
+                    .tint(.black)
             }
         }
         .onAppear {
