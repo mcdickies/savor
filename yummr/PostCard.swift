@@ -5,6 +5,7 @@ import UIKit
 
 struct PostCard: View {
     var post: Post
+    var onOpenDetails: (() -> Void)?
     @State private var likeCount: Int
     @State private var isLiked: Bool
     @State private var isProcessingLike = false
@@ -18,8 +19,9 @@ struct PostCard: View {
     @State private var isShareSheetPresented = false
     @State private var shareItems: [Any] = []
 
-    init(post: Post) {
+    init(post: Post, onOpenDetails: (() -> Void)? = nil) {
         self.post = post
+        self.onOpenDetails = onOpenDetails
         _likeCount = State(initialValue: post.likeCount)
         _isLiked = State(initialValue: post.likedBy.contains(Auth.auth().currentUser?.uid ?? ""))
     }
@@ -30,7 +32,7 @@ struct PostCard: View {
 
             titleRow
 
-            imageCarousel
+            detailTapArea
 
             if !post.photoTags.isEmpty {
                 Button {
@@ -181,6 +183,8 @@ struct PostCard: View {
                 .labelStyle(.titleAndIcon)
                 .appTextStyle(.footnote, weight: .medium)
                 .foregroundColor(tint)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -223,10 +227,16 @@ struct PostCard: View {
     }
 
     private func toggleSave() {
+        let previous = isSaved
+        isSaved.toggle()
         SavedService.shared.toggleSave(post: post) { result in
             DispatchQueue.main.async {
-                if case .success(let saved) = result {
+                switch result {
+                case .success(let saved):
                     self.isSaved = saved
+                case .failure(let error):
+                    print("Failed to save post: \(error)")
+                    self.isSaved = previous
                 }
             }
         }
@@ -273,6 +283,18 @@ struct PostCard: View {
             }
         }
         .frame(height: UIScreen.main.bounds.width * 0.95)
+    }
+
+    @ViewBuilder
+    private var detailTapArea: some View {
+        if let onOpenDetails {
+            Button(action: onOpenDetails) {
+                imageCarousel
+            }
+            .buttonStyle(.plain)
+        } else {
+            imageCarousel
+        }
     }
 
     private func tagOverlay(tag: Post.PhotoTag, size: CGSize) -> some View {
@@ -460,15 +482,20 @@ struct PostCard: View {
     private func toggleLike() {
         guard !isProcessingLike else { return }
         isProcessingLike = true
+        let previousLiked = isLiked
+        let previousCount = likeCount
+        isLiked.toggle()
+        likeCount += isLiked ? 1 : -1
 
         PostService.shared.toggleLike(for: post) { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success():
-                    isLiked.toggle()
-                    likeCount += isLiked ? 1 : -1
+                    break
                 case .failure(let error):
                     print("Failed to like post: \(error)")
+                    isLiked = previousLiked
+                    likeCount = previousCount
                 }
                 isProcessingLike = false
             }

@@ -544,10 +544,16 @@ struct PostDetailView: View {
     }
 
     private func toggleSave() {
+        let previous = isSaved
+        isSaved.toggle()
         SavedService.shared.toggleSave(post: livePost) { result in
             DispatchQueue.main.async {
-                if case .success(let saved) = result {
+                switch result {
+                case .success(let saved):
                     self.isSaved = saved
+                case .failure(let error):
+                    print("Failed to save post: \(error)")
+                    self.isSaved = previous
                 }
             }
         }

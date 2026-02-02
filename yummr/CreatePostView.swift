@@ -38,6 +38,15 @@ struct CreatePostView: View {
     @State private var youtubeTranscript: String = ""
     @State private var youtubeTitle: String = ""
     @State private var aiNotes: [String] = []
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case title
+        case description
+        case cookTime
+        case calorieEstimate
+        case ingredient
+    }
 
     var body: some View {
         NavigationView {
@@ -46,14 +55,17 @@ struct CreatePostView: View {
                     Group {
                         TextField("Title", text: $title)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .focused($focusedField, equals: .title)
 
                         TextField("Description", text: $description, axis: .vertical)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .focused($focusedField, equals: .description)
 
                         photoActionButtons
 
                         TextField("Cook time (e.g. 45 minutes)", text: $cookTime)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .focused($focusedField, equals: .cookTime)
                     }
 
                     ingredientsSection
@@ -61,6 +73,7 @@ struct CreatePostView: View {
                     TextField("Calories (estimated)", text: $calorieEstimate)
                         .keyboardType(.numberPad)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .focused($focusedField, equals: .calorieEstimate)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Recipe Instructions")
@@ -81,7 +94,9 @@ struct CreatePostView: View {
                     }
 
                     Button {
-                        showAutoLogSheet = true
+                        performButtonAction {
+                            showAutoLogSheet = true
+                        }
                     } label: {
                         Label("Auto Log with AI", systemImage: "wand.and.stars")
                             .font(.headline)
@@ -135,11 +150,8 @@ struct CreatePostView: View {
                 }
                 .padding()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Create Post")
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            dismissKeyboard()
         }
         .sheet(isPresented: $showCameraPicker) {
             ImagePicker(image: $capturedImage, sourceType: .camera)
@@ -249,6 +261,7 @@ struct CreatePostView: View {
             HStack {
                 TextField("Add ingredient or keyword", text: $ingredientDraft)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .focused($focusedField, equals: .ingredient)
                 Button("Add") {
                     addIngredient()
                 }
@@ -298,12 +311,17 @@ struct CreatePostView: View {
                     .cornerRadius(16)
                 }
                 .buttonStyle(.plain)
+                .simultaneousGesture(TapGesture().onEnded {
+                    focusedField = nil
+                })
 
                 Button {
-                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        showCameraPicker = true
-                    } else {
-                        cameraUnavailableAlert = true
+                    performButtonAction {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            showCameraPicker = true
+                        } else {
+                            cameraUnavailableAlert = true
+                        }
                     }
                 } label: {
                     VStack(spacing: 8) {
@@ -346,6 +364,13 @@ struct CreatePostView: View {
                     .padding(.vertical, 4)
                 }
             }
+        }
+    }
+
+    private func performButtonAction(_ action: @escaping () -> Void) {
+        focusedField = nil
+        DispatchQueue.main.async {
+            action()
         }
     }
 

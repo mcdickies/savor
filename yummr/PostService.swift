@@ -268,6 +268,27 @@ class PostService: ObservableObject {
             }
     }
 
+    func preloadTopPostsAndImages(limit: Int = 8, completion: (() -> Void)? = nil) {
+        db.collection("posts")
+            .order(by: "timestamp", descending: true)
+            .limit(to: limit)
+            .getDocuments { snapshot, _ in
+                let posts = snapshot?.documents.compactMap { try? $0.data(as: Post.self) } ?? []
+                DispatchQueue.main.async {
+                    self.cachedTopPosts = posts
+                }
+
+                let urls = posts.compactMap { post -> URL? in
+                    guard let first = post.imageURLs.first else { return nil }
+                    return URL(string: first)
+                }
+
+                ImageCache.shared.prefetch(urls: urls) {
+                    completion?()
+                }
+            }
+    }
+
     func updatePost(postID: String,
                     title: String? = nil,
                     description: String,

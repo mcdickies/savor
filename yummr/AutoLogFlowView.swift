@@ -29,6 +29,8 @@ struct AutoLogSheetView: View {
     @State private var youtubeErrorMessage: String?
     @State private var draftState: AutoLogDraftState?
     @State private var showDraftReview = false
+    @FocusState private var isTranscriptFocused: Bool
+    @FocusState private var isYouTubeFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -47,7 +49,9 @@ struct AutoLogSheetView: View {
                     referencePhotosSection
 
                     Button {
-                        requestAIDraft()
+                        performButtonAction {
+                            requestAIDraft()
+                        }
                     } label: {
                         Label(isDrafting ? "Drafting..." : "Draft with AI", systemImage: "wand.and.stars")
                             .frame(maxWidth: .infinity)
@@ -63,10 +67,7 @@ struct AutoLogSheetView: View {
                 }
                 .padding()
             }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                dismissKeyboard()
-            }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Auto Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -158,6 +159,7 @@ struct AutoLogSheetView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                 )
+                .focused($isTranscriptFocused)
         }
         .padding()
         .background(Color(UIColor.secondarySystemBackground))
@@ -181,9 +183,15 @@ struct AutoLogSheetView: View {
                 ) {
                     Label("Add Photos", systemImage: "photo.on.rectangle")
                 }
+                .simultaneousGesture(TapGesture().onEnded {
+                    isTranscriptFocused = false
+                    isYouTubeFocused = false
+                })
 
                 Button {
-                    showReferenceCamera = true
+                    performButtonAction {
+                        showReferenceCamera = true
+                    }
                 } label: {
                     Label("Capture", systemImage: "camera")
                 }
@@ -241,9 +249,12 @@ struct AutoLogSheetView: View {
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isYouTubeFocused)
 
             Button {
-                fetchYouTubeTranscript()
+                performButtonAction {
+                    fetchYouTubeTranscript()
+                }
             } label: {
                 HStack {
                     if isFetchingYouTube {
@@ -278,6 +289,14 @@ struct AutoLogSheetView: View {
         .padding()
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(12)
+    }
+
+    private func performButtonAction(_ action: @escaping () -> Void) {
+        isTranscriptFocused = false
+        isYouTubeFocused = false
+        DispatchQueue.main.async {
+            action()
+        }
     }
 
     private func requestAIDraft() {
@@ -574,8 +593,8 @@ struct AutoLogDraftReviewView: View {
                     }
 
                     Button("Confirm Draft") {
-                        let ingredients = splitLines(from: ingredientsText)
-                        let notes = splitLines(from: notesText)
+                        let ingredients = splitLines(from: ingredientsText, allowCommas: true)
+                        let notes = splitLines(from: notesText, allowCommas: false)
                         let confirmed = AutoLogDraftState(
                             title: stripCreativeTags(title),
                             description: stripCreativeTags(description),
@@ -602,9 +621,12 @@ struct AutoLogDraftReviewView: View {
         }
     }
 
-    private func splitLines(from text: String) -> [String] {
-        text
-            .components(separatedBy: CharacterSet.newlines.union([","]))
+    private func splitLines(from text: String, allowCommas: Bool) -> [String] {
+        let separators = allowCommas
+            ? CharacterSet.newlines.union([","])
+            : CharacterSet.newlines
+        return text
+            .components(separatedBy: separators)
             .map { stripCreativeTags($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
