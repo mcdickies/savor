@@ -31,7 +31,6 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var followerCount: Int = 0
     @State private var followingCount: Int = 0
-    @State private var hasFriendCounts = false
     @State private var activeFriendList: FriendListView.Mode?
     @State private var isFollowingProfile = false
     @State private var isProcessingFollowAction = false
@@ -39,7 +38,6 @@ struct ProfileView: View {
     @State private var isShowingUserFeed = false
 
     private let db = Firestore.firestore()
-    @State private var friendListener: ListenerRegistration?
     @State private var profileListener: ListenerRegistration?
 
     private var resolvedUserID: String? {
@@ -127,7 +125,6 @@ struct ProfileView: View {
             loadProfileData()
             loadPosts()
             loadTaggedPosts()
-            startFriendListener()
             refreshFriendshipState()
         }
         .onDisappear(perform: stopListeners)
@@ -440,7 +437,6 @@ struct ProfileView: View {
 
     private func loadProfileData() {
         guard let uid = resolvedUserID else { return }
-        hasFriendCounts = false
         profileListener?.remove()
         profileListener = db.collection("users").document(uid)
             .addSnapshotListener { snapshot, _ in
@@ -448,10 +444,8 @@ struct ProfileView: View {
                     DispatchQueue.main.async {
                         self.profileUser = user
                         self.bio = user.bio ?? ""
-                        if !hasFriendCounts {
-                            self.followerCount = user.followerCount ?? 0
-                            self.followingCount = user.followingCount ?? 0
-                        }
+                        self.followerCount = user.followerCount ?? 0
+                        self.followingCount = user.followingCount ?? 0
                         if let profileURL = user.profileImageURL, let url = URL(string: profileURL) {
                             self.profileImageURL = url
                         }
@@ -543,21 +537,7 @@ struct ProfileView: View {
         }
     }
 
-    private func startFriendListener() {
-        guard let uid = resolvedUserID else { return }
-        friendListener?.remove()
-        friendListener = FriendService.shared.observeFriendIDs(for: uid) { ids in
-            DispatchQueue.main.async {
-                self.followerCount = ids.count
-                self.followingCount = ids.count
-                self.hasFriendCounts = true
-            }
-        }
-    }
-
     private func stopListeners() {
-        friendListener?.remove()
-        friendListener = nil
         profileListener?.remove()
         profileListener = nil
     }

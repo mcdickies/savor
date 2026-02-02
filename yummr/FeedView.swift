@@ -16,33 +16,39 @@ struct FeedView: View {
     @State private var friendsListener: ListenerRegistration?
     @State private var showNotifications = false
     @State private var isRefreshing = false
+    @State private var selectedPost: Post?
+    @State private var isShowingPostDetail = false
 
     private let db = Firestore.firestore()
 
     var body: some View {
         NavigationView {
             ScrollView {
-                if posts.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("No posts yet.")
-                            .font(.headline)
-                        Text("Add friends or share your first post to get started.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 80)
-                } else {
-                    VStack(spacing: 8) {
-                        ForEach(posts) { post in
-                            NavigationLink(destination: PostDetailView(post: post)) {
-                                PostCard(post: post)
-                            }
-                            .buttonStyle(.plain)
+                ZStack {
+                    if posts.isEmpty {
+                        VStack(spacing: 12) {
+                            Text("No posts yet.")
+                                .font(.headline)
+                            Text("Add friends or share your first post to get started.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 80)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(posts) { post in
+                                PostCard(post: post) {
+                                    openPostDetail(post)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 8)
                     }
-                    .padding(.vertical, 8)
+
+                    postDetailLink
+                        .hidden()
                 }
             }
             .navigationTitle("The Feed")
@@ -119,5 +125,30 @@ struct FeedView: View {
             .filter { allowedAuthorIDs.contains($0.authorID) }
             .sorted { $0.timestamp > $1.timestamp }
         posts = filtered
+    }
+
+    private func openPostDetail(_ post: Post) {
+        selectedPost = post
+        isShowingPostDetail = true
+    }
+
+    @ViewBuilder
+    private var postDetailLink: some View {
+        if let selectedPost {
+            NavigationLink(
+                destination: PostDetailView(post: selectedPost),
+                isActive: Binding(
+                    get: { isShowingPostDetail },
+                    set: { newValue in
+                        if !newValue {
+                            selectedPost = nil
+                        }
+                        isShowingPostDetail = newValue
+                    }
+                )
+            ) {
+                EmptyView()
+            }
+        }
     }
 }

@@ -99,7 +99,7 @@ final class FriendService: ObservableObject {
 
         batch.commit { error in
             if error == nil {
-                self.incrementFriendCounts(for: [currentUID, requesterUID], delta: 1)
+                self.updateFollowCounts(followerUID: requesterUID, followingUID: currentUID, delta: 1)
             }
             completion?(error)
         }
@@ -120,7 +120,7 @@ final class FriendService: ObservableObject {
         batch.deleteDocument(otherRef)
         batch.commit { error in
             if error == nil {
-                self.incrementFriendCounts(for: [currentUID, friendUID], delta: -1)
+                self.updateFollowCounts(followerUID: currentUID, followingUID: friendUID, delta: -1)
             }
             completion?(error)
         }
@@ -152,7 +152,7 @@ final class FriendService: ObservableObject {
 
         batch.commit { error in
             if error == nil {
-                self.incrementFriendCounts(for: [currentUID, targetUID], delta: 1)
+                self.updateFollowCounts(followerUID: currentUID, followingUID: targetUID, delta: 1)
                 UserService.shared.fetchUser(withID: currentUID) { user in
                     let actorName = HandleFormatter.normalizedHandleIfPresent(user?.handle)
                         ?? HandleFormatter.normalizedHandle(from: user?.displayName ?? "Someone")
@@ -199,16 +199,17 @@ final class FriendService: ObservableObject {
             }
     }
 
-    private func incrementFriendCounts(for uids: [String], delta: Int64) {
+    private func updateFollowCounts(followerUID: String, followingUID: String, delta: Int64) {
         guard delta != 0 else { return }
         let batch = db.batch()
-        uids.forEach { uid in
-            let userRef = db.collection("users").document(uid)
-            batch.setData([
-                "followerCount": FieldValue.increment(delta),
-                "followingCount": FieldValue.increment(delta)
-            ], forDocument: userRef, merge: true)
-        }
+        let followerRef = db.collection("users").document(followerUID)
+        let followingRef = db.collection("users").document(followingUID)
+        batch.setData([
+            "followingCount": FieldValue.increment(delta)
+        ], forDocument: followerRef, merge: true)
+        batch.setData([
+            "followerCount": FieldValue.increment(delta)
+        ], forDocument: followingRef, merge: true)
         batch.commit(completion: nil)
     }
 }

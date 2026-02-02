@@ -12,6 +12,31 @@ final class ImageCache {
     func store(image: UIImage, for url: URL) {
         cache.setObject(image, forKey: url.absoluteString as NSString)
     }
+
+    func prefetch(urls: [URL], completion: (() -> Void)? = nil) {
+        guard !urls.isEmpty else {
+            completion?()
+            return
+        }
+
+        let group = DispatchGroup()
+
+        for url in urls {
+            if image(for: url) != nil {
+                continue
+            }
+            group.enter()
+            URLSession.shared.dataTask(with: url) { data, _, _ in
+                defer { group.leave() }
+                guard let data = data, let image = UIImage(data: data) else { return }
+                self.store(image: image, for: url)
+            }.resume()
+        }
+
+        group.notify(queue: .main) {
+            completion?()
+        }
+    }
 }
 
 struct CachedWebImage<Placeholder: View>: View {

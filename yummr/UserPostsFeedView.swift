@@ -12,6 +12,8 @@ struct UserPostsFeedView: View {
     @State private var isLoading = true
     @State private var listener: ListenerRegistration?
     @State private var hasScrolledToInitialPost = false
+    @State private var selectedPost: Post?
+    @State private var isShowingPostDetail = false
 
     private let db = Firestore.firestore()
 
@@ -29,15 +31,17 @@ struct UserPostsFeedView: View {
                     LazyVStack(spacing: 24) {
                         ForEach(posts) { post in
                             let identifier = post.stableIdentifier
-                            NavigationLink(destination: PostDetailView(post: post)) {
-                                PostCard(post: post)
+                            PostCard(post: post) {
+                                openPostDetail(post)
                             }
-                            .buttonStyle(.plain)
                             .id(identifier)
                         }
                     }
                     .padding()
                 }
+
+                postDetailLink
+                    .hidden()
             }
         .onChange(of: posts.map { $0.stableIdentifier }) { _ in
             guard !hasScrolledToInitialPost,
@@ -99,5 +103,30 @@ struct UserPostsFeedView: View {
                     self.isLoading = false
                 }
             }
+    }
+
+    private func openPostDetail(_ post: Post) {
+        selectedPost = post
+        isShowingPostDetail = true
+    }
+
+    @ViewBuilder
+    private var postDetailLink: some View {
+        if let selectedPost {
+            NavigationLink(
+                destination: PostDetailView(post: selectedPost),
+                isActive: Binding(
+                    get: { isShowingPostDetail },
+                    set: { newValue in
+                        if !newValue {
+                            selectedPost = nil
+                        }
+                        isShowingPostDetail = newValue
+                    }
+                )
+            ) {
+                EmptyView()
+            }
+        }
     }
 }

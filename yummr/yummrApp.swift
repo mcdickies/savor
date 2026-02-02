@@ -61,12 +61,27 @@ private struct AppRootView: View {
             }
         }
         .onAppear {
-            PostService.shared.preloadTopPosts(limit: 5) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            let start = Date()
+            let minDuration: TimeInterval = 1.0
+            let maxDuration: TimeInterval = 3.0
+            var didFinish = false
+
+            func finishSplash(after delay: TimeInterval) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard !didFinish else { return }
+                    didFinish = true
                     withAnimation(.easeInOut(duration: 0.6)) {
                         showSplash = false
                     }
                 }
+            }
+
+            finishSplash(after: maxDuration)
+
+            PostService.shared.preloadTopPostsAndImages(limit: 8) {
+                let elapsed = Date().timeIntervalSince(start)
+                let remaining = max(0, minDuration - elapsed)
+                finishSplash(after: remaining)
             }
         }
     }
